@@ -1,0 +1,2735 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Editex — Биржа монтажёров</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700&family=Onest:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --bg2: #141416;
+    --bg3: #1c1c1f;
+    --border: rgba(255,255,255,0.07);
+    --accent: #e8ff47;
+    --accent2: #ff6b35;
+    --text: #f0f0f0;
+    --muted: #6b6b72;
+    --muted2: #9898a0;
+    --card: #17171a;
+    --radius: 16px;
+    --font-display: 'Unbounded', sans-serif;
+    --font-body: 'Onest', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-size: 14px;
+  }
+
+  /* APP CONTAINER — no phone shell */
+  .app {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  /* SCREENS */
+  .screen {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(20px);
+    transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    scrollbar-width: none;
+    min-height: 100vh;
+  }
+  .screen::-webkit-scrollbar { display: none; }
+  .screen.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateX(0);
+  }
+  .screen.slide-back { transform: translateX(-20px); }
+
+  /* BOTTOM NAV */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    background: rgba(13,13,15,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    padding: 10px 0 max(20px, env(safe-area-inset-bottom));
+    display: flex;
+    z-index: 100;
+    transition: opacity 0.2s;
+  }
+  .bottom-nav.hidden { opacity: 0; pointer-events: none; }
+
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 10px;
+    transition: all 0.15s;
+  }
+  .nav-item:active { transform: scale(0.9); }
+  .nav-icon { width: 24px; height: 24px; color: var(--muted); transition: color 0.15s; }
+  .nav-label { font-size: 10px; color: var(--muted); font-family: var(--font-body); font-weight: 500; transition: color 0.15s; }
+  .nav-item.active .nav-icon,
+  .nav-item.active .nav-label { color: var(--accent); }
+  .nav-item.active .nav-icon { filter: drop-shadow(0 0 6px var(--accent)); }
+
+  /* TYPOGRAPHY */
+  .display-title { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 24px;
+    border-radius: 14px;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    outline: none;
+    transition: all 0.15s;
+    width: 100%;
+    letter-spacing: 0.01em;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #d4e83f; }
+  .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost { background: transparent; color: var(--accent); border: 1px solid rgba(232,255,71,0.3); }
+  .btn-danger { background: rgba(255,80,80,0.1); color: #ff5050; border: 1px solid rgba(255,80,80,0.2); }
+  .btn-sm { padding: 8px 16px; font-size: 12px; border-radius: 10px; width: auto; }
+
+  /* CARDS */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: border-color 0.15s;
+  }
+  .card:active { border-color: rgba(255,255,255,0.15); }
+
+  /* TAGS */
+  .tag { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+  .tag-green { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .tag-yellow { background: rgba(232,255,71,0.15); color: var(--accent); }
+  .tag-orange { background: rgba(255,107,53,0.15); color: var(--accent2); }
+  .tag-blue { background: rgba(96,165,250,0.15); color: #60a5fa; }
+  .tag-gray { background: rgba(255,255,255,0.08); color: var(--muted2); }
+
+  /* AVATAR */
+  .avatar {
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2a2a2f, #1a1a1f);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  /* INPUT */
+  .input-group { display: flex; flex-direction: column; gap: 6px; }
+  .input-label { font-size: 12px; color: var(--muted2); font-weight: 500; }
+  .input {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+    resize: none;
+  }
+  .input:focus { border-color: rgba(232,255,71,0.4); }
+  .input::placeholder { color: var(--muted); }
+
+  /* PAGE HEADER */
+  .page-header {
+    padding: 16px 20px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    background: rgba(13,13,15,0.9);
+    backdrop-filter: blur(12px);
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+  }
+  .back-btn {
+    width: 36px; height: 36px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .back-btn:active { transform: scale(0.9); }
+
+  /* BADGE */
+  .badge { background: var(--accent); color: #000; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px; font-family: var(--font-display); }
+
+  /* ONBOARDING */
+  #screen-onboarding {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 28px;
+    min-height: 100vh;
+  }
+  .onboarding-logo {
+    width: 80px; height: 80px;
+    background: var(--accent);
+    border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 32px;
+    box-shadow: 0 20px 60px rgba(232,255,71,0.25);
+  }
+  .role-cards { width: 100%; display: flex; flex-direction: column; gap: 12px; margin: 28px 0; }
+  .role-card {
+    background: var(--card);
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .role-card:hover { border-color: rgba(232,255,71,0.3); }
+  .role-card.selected { border-color: var(--accent); background: rgba(232,255,71,0.05); }
+  .role-card:active { transform: scale(0.98); }
+  .role-emoji { font-size: 36px; }
+  .role-info h3 { font-family: var(--font-display); font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .role-info p { font-size: 12px; color: var(--muted2); line-height: 1.5; }
+
+  /* DASHBOARD */
+  .dash-header { padding: 20px 20px 0; background: linear-gradient(180deg, var(--bg) 0%, transparent 100%); }
+  .dash-greeting { font-size: 12px; color: var(--muted2); margin-bottom: 2px; }
+  .search-bar {
+    margin: 16px 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .filter-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .filter-chips::-webkit-scrollbar { display: none; }
+  .chip {
+    white-space: nowrap;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--muted2);
+  }
+  .chip.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted2);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 20px 20px 12px;
+  }
+
+  /* EDITOR CARD */
+  .editor-card {
+    margin: 0 20px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .editor-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-1px); }
+  .editor-card:active { transform: scale(0.99); }
+  .editor-card-top { display: flex; gap: 12px; align-items: flex-start; }
+  .editor-meta { flex: 1; }
+  .editor-name { font-family: var(--font-display); font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .editor-title { font-size: 12px; color: var(--muted2); margin-bottom: 8px; }
+  .editor-stats { display: flex; gap: 12px; align-items: center; }
+  .editor-rating { font-size: 12px; font-weight: 600; color: #fbbf24; }
+  .editor-price { font-size: 12px; font-weight: 600; color: var(--accent); }
+  .editor-reviews { font-size: 11px; color: var(--muted); }
+  .editor-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .portfolio-strip { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; }
+  .portfolio-strip::-webkit-scrollbar { display: none; }
+  .portfolio-thumb {
+    width: 72px; height: 48px; border-radius: 8px; flex-shrink: 0;
+    background: linear-gradient(135deg, #1e1e22, #2a2a30);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    border: 1px solid var(--border);
+  }
+
+  /* JOB CARD */
+  .job-card {
+    margin: 0 20px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .job-card:active { transform: scale(0.99); }
+  .job-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .job-title { font-family: var(--font-display); font-size: 14px; font-weight: 600; line-height: 1.3; flex: 1; padding-right: 10px; }
+  .job-budget { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .job-desc { font-size: 13px; color: var(--muted2); line-height: 1.5; margin-bottom: 12px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .job-footer { display: flex; justify-content: space-between; align-items: center; }
+  .job-meta { display: flex; gap: 12px; }
+  .job-meta-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+
+  /* CREATE FORM */
+  .create-form { padding: 20px; padding-bottom: 100px; }
+  .form-row { margin-bottom: 16px; }
+  .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+
+  /* JOB DETAIL */
+  .job-detail-hero { padding: 20px; border-bottom: 1px solid var(--border); }
+  .client-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .response-card {
+    margin: 0 20px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    transition: all 0.15s;
+  }
+  .response-card:hover { border-color: rgba(255,255,255,0.12); }
+
+  /* PROFILE */
+  .profile-hero { padding: 28px 20px 20px; text-align: center; border-bottom: 1px solid var(--border); }
+  .profile-avatar {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    margin: 0 auto 14px;
+    background: linear-gradient(135deg, #2a2a30, #1a1a20);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    border: 3px solid var(--border);
+  }
+  .profile-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .profile-handle { font-size: 13px; color: var(--muted2); margin-bottom: 14px; }
+  .profile-stats { display: flex; justify-content: center; gap: 28px; }
+  .profile-stat { text-align: center; }
+  .profile-stat-value { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+  .profile-stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .review-item { padding: 14px; border-bottom: 1px solid var(--border); }
+  .review-item:last-child { border-bottom: none; }
+  .review-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .review-text { font-size: 13px; color: var(--muted2); line-height: 1.5; }
+  .my-profile-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 20px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+  .stat-card-value { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--accent); }
+  .stat-card-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 80px;
+    right: max(16px, calc(50% - 220px));
+    width: 52px; height: 52px;
+    background: var(--accent);
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 30px rgba(232,255,71,0.35);
+    transition: all 0.15s;
+    z-index: 99;
+  }
+  .fab:active { transform: scale(0.95); }
+  .fab.hidden { opacity: 0; pointer-events: none; }
+
+  /* SETUP */
+  #screen-setup { padding: 24px 20px; padding-bottom: 100px; }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { animation: fadeUp 0.4s ease forwards; }
+  .fade-up-1 { animation-delay: 0.05s; }
+  .fade-up-2 { animation-delay: 0.1s; }
+  .fade-up-3 { animation-delay: 0.15s; }
+  .fade-up-4 { animation-delay: 0.2s; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1c1c20;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.25s;
+    white-space: nowrap;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: rgba(74,222,128,0.3); color: #4ade80; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .modal-overlay.show { opacity: 1; pointer-events: all; }
+  .modal-sheet {
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg2);
+    border-radius: 24px 24px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 12px 20px 40px;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 80vh;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .modal-overlay.show .modal-sheet { transform: translateY(0); }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted2); }
+  .empty-state-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-state-title { font-family: var(--font-display); font-size: 16px; color: var(--text); margin-bottom: 8px; }
+  .empty-state-desc { font-size: 13px; line-height: 1.5; }
+
+  /* LOADING */
+  .loader {
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 20px;
+    gap: 8px;
+    color: var(--muted2);
+    font-size: 13px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  /* MISC */
+  .scroll-pad { height: 100px; }
+  .screen-content { padding-bottom: 80px; }
+  .progress-dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 32px; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; background: var(--border); transition: all 0.2s; }
+  .dot.active { background: var(--accent); width: 24px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; flex-shrink: 0; }
+  .connect-btn {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px;
+    background: rgba(38,182,255,0.1);
+    border: 1px solid rgba(38,182,255,0.25);
+    border-radius: 14px;
+    color: #26b6ff;
+    font-weight: 600; font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+    margin: 20px 0 0;
+  }
+  .connect-btn:active { transform: scale(0.97); }
+
+  /* LOADING SCREEN */
+  #screen-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 16px;
+  }
+  .loading-logo {
+    width: 72px; height: 72px;
+    background: var(--accent);
+    border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(232,255,71,0.4); }
+    50% { box-shadow: 0 0 0 16px rgba(232,255,71,0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- =================== LOADING =================== -->
+  <div class="screen active" id="screen-loading">
+    <div class="loading-logo">
+      <svg width="40" height="40" viewBox="0 0 44 44" fill="none">
+        <path d="M8 12L22 6L36 12V24C36 31.7 29.5 38 22 40C14.5 38 8 31.7 8 24V12Z" fill="#000" opacity="0.6"/>
+        <path d="M17 22L20.5 25.5L27 18" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="display-title" style="font-size:20px;">Editex</div>
+    <div style="color:var(--muted2);font-size:13px;" id="load-status">Инициализация...</div>
+  </div>
+
+  <!-- =================== ONBOARDING: WELCOME =================== -->
+  <div class="screen" id="screen-onboarding">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 28px;">
+      <div style="width:100%;max-width:340px;text-align:center;">
+        <div class="onboarding-logo" style="margin:0 auto 32px;">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+            <path d="M8 12L22 6L36 12V24C36 31.7 29.5 38 22 40C14.5 38 8 31.7 8 24V12Z" fill="#000" opacity="0.6"/>
+            <path d="M17 22L20.5 25.5L27 18" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h1 class="display-title fade-up" style="font-size:28px;line-height:1.15;margin-bottom:10px;">Editex</h1>
+        <p class="fade-up fade-up-1" style="color:var(--muted2);font-size:14px;line-height:1.6;margin-bottom:40px;">
+          Биржа видеомонтажёров в Telegram
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;width:100%;" class="fade-up fade-up-2">
+          <button class="btn btn-primary" onclick="showScreen('screen-register')">
+            Зарегистрироваться
+          </button>
+          <button class="btn btn-secondary" onclick="showScreen('screen-login')">
+            Войти (уже есть аккаунт)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== LOGIN =================== -->
+  <div class="screen" id="screen-login">
+    <div class="page-header">
+      <div class="back-btn" onclick="showScreen('screen-onboarding')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Вход</span>
+    </div>
+    <div style="padding:24px 20px;">
+      <div class="form-row">
+        <div class="input-group">
+          <label class="input-label">Telegram @username *</label>
+          <input class="input" placeholder="@username" id="login-username" autocomplete="username">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="input-group">
+          <label class="input-label">Пароль *</label>
+          <input class="input" type="password" placeholder="Ваш пароль" id="login-password" autocomplete="current-password">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()" id="login-btn" style="margin-top:8px;">
+        Войти →
+      </button>
+      <div style="text-align:center;margin-top:16px;">
+        <span style="font-size:13px;color:var(--muted2);">Нет аккаунта? </span>
+        <span style="font-size:13px;color:var(--accent);cursor:pointer;font-weight:600;" onclick="showScreen('screen-register')">Зарегистрироваться</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== REGISTER: ROLE =================== -->
+  <div class="screen" id="screen-register">
+    <div class="page-header">
+      <div class="back-btn" onclick="showScreen('screen-onboarding')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Регистрация</span>
+    </div>
+    <div style="padding:24px 28px;">
+      <div class="progress-dots" style="justify-content:flex-start;margin-bottom:20px;">
+        <div class="dot active"></div><div class="dot"></div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Кто вы?</p>
+      <div class="role-cards">
+        <div class="role-card" id="role-client" onclick="selectRole('client')">
+          <div class="role-emoji">🎬</div>
+          <div class="role-info"><h3>Заказчик</h3><p>Публикую задания и ищу монтажёров</p></div>
+          <svg id="check-client" width="20" height="20" viewBox="0 0 20 20" fill="none" style="display:none;flex-shrink:0;">
+            <circle cx="10" cy="10" r="10" fill="#e8ff47"/>
+            <path d="M6 10L9 13L14 7" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="role-card" id="role-editor" onclick="selectRole('editor')">
+          <div class="role-emoji">✂️</div>
+          <div class="role-info"><h3>Монтажёр</h3><p>Беру проекты и зарабатываю на своём таланте</p></div>
+          <svg id="check-editor" width="20" height="20" viewBox="0 0 20 20" fill="none" style="display:none;flex-shrink:0;">
+            <circle cx="10" cy="10" r="10" fill="#e8ff47"/>
+            <path d="M6 10L9 13L14 7" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <div id="continue-btn-wrap" style="width:100%;display:none;margin-top:4px;">
+        <button class="btn btn-primary" onclick="goToSetup()">Далее →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== SETUP PROFILE =================== -->
+  <div class="screen" id="screen-setup">
+    <div class="page-header">
+      <div class="back-btn" onclick="showScreen('screen-register')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Настройка профиля</span>
+    </div>
+
+    <div style="padding:24px 20px;">
+      <div class="progress-dots" style="justify-content:flex-start;margin-bottom:24px;">
+        <div class="dot" id="dot-s1"></div>
+        <div class="dot active" id="dot-s2"></div>
+        <div class="dot" id="dot-s3"></div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="input-group">
+          <label class="input-label">Ваше имя *</label>
+          <input class="input" placeholder="Иван Петров" id="setup-name">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Telegram @username *</label>
+          <input class="input" placeholder="@username" id="setup-tg-username" autocomplete="username">
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="input-group">
+          <label class="input-label">Пароль *</label>
+          <input class="input" type="password" placeholder="Придумайте пароль" id="setup-password" autocomplete="new-password">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Повторите пароль *</label>
+          <input class="input" type="password" placeholder="Повторите пароль" id="setup-password2" autocomplete="new-password">
+        </div>
+      </div>
+
+      <div id="editor-bio-row">
+        <div class="form-row">
+          <div class="input-group">
+            <label class="input-label">Опыт работы</label>
+            <input class="input" placeholder="Например: 3 года, 50+ проектов" id="setup-experience">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="input-group">
+            <label class="input-label">Специализация (можно несколько)</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+              <div class="chip" id="spec-reels" onclick="toggleSpec('reels')">📱 Reels/Shorts</div>
+              <div class="chip" id="spec-youtube" onclick="toggleSpec('youtube')">🎬 YouTube</div>
+              <div class="chip" id="spec-clips" onclick="toggleSpec('clips')">🎵 Клипы</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row-2" id="editor-price-row">
+        <div class="input-group">
+          <label class="input-label">Цена от (₽)</label>
+          <input class="input" type="number" placeholder="5000" id="setup-price-from">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Цена до (₽)</label>
+          <input class="input" type="number" placeholder="30000" id="setup-price-to">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="completeSetup()" id="setup-btn" style="margin-top:8px;">Готово — открыть приложение 🚀</button>
+    </div>
+    <div class="scroll-pad"></div>
+  </div>
+
+  <!-- =================== CLIENT DASHBOARD =================== -->
+  <div class="screen" id="screen-client-dashboard">
+    <div class="screen-content">
+      <div class="dash-header">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-top:4px;">
+          <div>
+            <div class="dash-greeting">Добро пожаловать,</div>
+            <div class="display-title" style="font-size:20px;" id="client-greeting">... 👋</div>
+          </div>
+          <div class="avatar" style="width:40px;height:40px;font-size:14px;background:linear-gradient(135deg,#e8ff47,#a3b71a);" id="client-avatar" onclick="navigate('screen-my-profile')">?</div>
+        </div>
+
+        <div class="search-bar" onclick="showToast('🔍 Поиск в разработке')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#6b6b72" stroke-width="1.5"/><path d="M11 11L14 14" stroke="#6b6b72" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span style="font-size:13px;">Поиск монтажёров...</span>
+        </div>
+
+        <div class="filter-chips">
+          <div class="chip active" data-cat="all" onclick="filterMonters(this)">Все</div>
+          <div class="chip" data-cat="reels" onclick="filterMonters(this)">📱 Reels/Shorts</div>
+          <div class="chip" data-cat="youtube" onclick="filterMonters(this)">🎬 YouTube</div>
+          <div class="chip" data-cat="clips" onclick="filterMonters(this)">🎵 Клипы</div>
+        </div>
+      </div>
+
+      <div class="section-title">Монтажёры</div>
+      <div id="editors-list">
+        <div class="loader"><div class="spinner"></div> Загрузка...</div>
+      </div>
+      <div class="scroll-pad"></div>
+    </div>
+  </div>
+
+  <!-- =================== EDITOR DASHBOARD =================== -->
+  <div class="screen" id="screen-editor-dashboard">
+    <div class="screen-content">
+      <div class="dash-header">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-top:4px;">
+          <div>
+            <div class="dash-greeting">Новые заказы,</div>
+            <div class="display-title" style="font-size:20px;" id="editor-greeting">... ✂️</div>
+          </div>
+          <div class="avatar" style="width:40px;height:40px;font-size:14px;" id="editor-avatar" onclick="navigate('screen-my-profile')">?</div>
+        </div>
+
+        <div class="search-bar" onclick="showToast('🔍 Поиск в разработке')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#6b6b72" stroke-width="1.5"/><path d="M11 11L14 14" stroke="#6b6b72" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span style="font-size:13px;">Поиск заказов...</span>
+        </div>
+
+        <div class="filter-chips">
+          <div class="chip active" data-filter="all" onclick="filterOrders(this)">Все</div>
+          <div class="chip" data-filter="urgent" onclick="filterOrders(this)">📦 Срочные</div>
+          <div class="chip" data-filter="highbudget" onclick="filterOrders(this)">💰 Высокий бюджет</div>
+          <div class="chip" data-filter="youtube" onclick="filterOrders(this)">🎬 YouTube</div>
+          <div class="chip" data-filter="reels" onclick="filterOrders(this)">📱 Reels</div>
+          <div class="chip" data-filter="clips" onclick="filterOrders(this)">🎵 Клипы</div>
+        </div>
+      </div>
+
+      <div class="section-title">Открытые заказы</div>
+      <div id="jobs-list">
+        <div class="loader"><div class="spinner"></div> Загрузка...</div>
+      </div>
+      <div class="scroll-pad"></div>
+    </div>
+  </div>
+
+  <!-- =================== CREATE JOB =================== -->
+  <div class="screen" id="screen-create-job">
+    <div class="page-header">
+      <div class="back-btn" onclick="goBackToDash()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Новый заказ</span>
+    </div>
+
+    <div class="create-form">
+      <div class="form-row">
+        <div class="input-group">
+          <label class="input-label">Название заказа *</label>
+          <input class="input" placeholder="Монтаж влога / Reels для бизнеса..." id="job-title">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="input-group">
+          <label class="input-label">Описание *</label>
+          <textarea class="input" rows="4" placeholder="Опишите задачу подробно: что нужно сделать, какой стиль, что предоставите..." id="job-desc"></textarea>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="input-group">
+          <label class="input-label">Бюджет (₽) *</label>
+          <input class="input" type="number" placeholder="10000" id="job-budget">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Дедлайн</label>
+          <input class="input" type="date" id="job-deadline">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="input-group">
+          <label class="input-label">Категория видео</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+            <div class="chip" id="jcat-reels" onclick="toggleJobCat('reels')">📱 Reels/Shorts</div>
+            <div class="chip" id="jcat-youtube" onclick="toggleJobCat('youtube')">🎬 YouTube</div>
+            <div class="chip" id="jcat-clips" onclick="toggleJobCat('clips')">🎵 Клипы</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="input-group">
+          <label class="input-label">Тип заказа</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+            <div class="chip" id="jtype-urgent" onclick="toggleJobType('urgent')">📦 Срочный</div>
+            <div class="chip" id="jtype-highbudget" onclick="toggleJobType('highbudget')">💰 Высокий бюджет</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:rgba(232,255,71,0.05);border:1px solid rgba(232,255,71,0.15);border-radius:12px;padding:12px 14px;margin-bottom:20px;">
+        <div style="font-size:12px;color:var(--accent);font-weight:600;margin-bottom:4px;">💡 Совет</div>
+        <div style="font-size:12px;color:var(--muted2);line-height:1.5;">Чем подробнее описание — тем качественнее отклики.</div>
+      </div>
+
+      <button class="btn btn-primary" onclick="submitJob()" id="create-job-btn">Опубликовать заказ 🚀</button>
+      <button class="btn btn-secondary" style="margin-top:10px;" onclick="goBackToDash()">Отмена</button>
+    </div>
+  </div>
+
+  <!-- =================== JOB DETAIL =================== -->
+  <div class="screen" id="screen-job-detail">
+    <div class="page-header">
+      <div class="back-btn" onclick="goBackToDash()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;" id="job-detail-header">Детали заказа</span>
+    </div>
+
+    <div class="screen-content">
+      <div class="job-detail-hero" id="job-detail-content"></div>
+
+      <!-- For editors: response form -->
+      <div id="editor-response-section" style="padding:20px;display:none;">
+        <div class="display-title" style="font-size:14px;margin-bottom:14px;">Ваш отклик</div>
+        <div class="form-row">
+          <div class="input-group">
+            <label class="input-label">Сообщение заказчику *</label>
+            <textarea class="input" rows="3" placeholder="Расскажите почему вы подходите для этого заказа..." id="response-message"></textarea>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="input-group">
+            <label class="input-label">Ваша цена (₽) *</label>
+            <input class="input" type="number" placeholder="12000" id="response-price">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="submitResponse()" id="response-btn">Отправить отклик</button>
+      </div>
+
+      <!-- For clients: proposals list -->
+      <div id="client-responses-section" style="display:none;">
+        <div style="padding:16px 20px 8px;">
+          <div class="display-title" style="font-size:14px;">Отклики монтажёров</div>
+        </div>
+        <div id="proposals-list">
+          <div class="loader"><div class="spinner"></div> Загрузка...</div>
+        </div>
+      </div>
+
+      <div class="scroll-pad"></div>
+    </div>
+  </div>
+
+  <!-- =================== EDITOR PROFILE (monter detail for client) =================== -->
+  <div class="screen" id="screen-editor-profile">
+    <div class="page-header">
+      <div class="back-btn" onclick="goBackToDash()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Профиль</span>
+    </div>
+    <div class="screen-content" id="editor-profile-content"></div>
+  </div>
+
+  <!-- =================== MY PROFILE =================== -->
+  <div class="screen" id="screen-my-profile">
+    <div class="page-header">
+      <div class="back-btn" onclick="goBackToDash()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Мой профиль</span>
+    </div>
+    <div class="screen-content" id="my-profile-content"></div>
+  </div>
+
+  <!-- =================== MY JOBS (client) =================== -->
+  <div class="screen" id="screen-my-jobs">
+    <div class="screen-content">
+      <div class="dash-header" style="padding-bottom:12px;">
+        <div class="display-title" style="font-size:20px;padding-top:4px;">Мои заказы</div>
+      </div>
+      <div id="my-jobs-list">
+        <div class="loader"><div class="spinner"></div> Загрузка...</div>
+      </div>
+      <div class="scroll-pad"></div>
+    </div>
+  </div>
+
+  <!-- =================== MY RESPONSES (editor) =================== -->
+  <div class="screen" id="screen-my-responses">
+    <div class="screen-content">
+      <div class="dash-header" style="padding-bottom:12px;">
+        <div class="display-title" style="font-size:20px;padding-top:4px;">Мои отклики</div>
+      </div>
+      <div id="my-responses-list">
+        <div class="loader"><div class="spinner"></div> Загрузка...</div>
+      </div>
+      <div class="scroll-pad"></div>
+    </div>
+  </div>
+
+  <!-- =================== CLIENT PROFILE (view) =================== -->
+  <div class="screen" id="screen-client-profile">
+    <div class="page-header">
+      <div class="back-btn" onclick="history.back(); goBackToDash()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Профиль заказчика</span>
+    </div>
+    <div class="screen-content" id="client-profile-content"></div>
+  </div>
+
+
+</div><!-- /app -->
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav hidden" id="bottom-nav">
+  <div class="nav-item active" id="nav-home" onclick="navTo('home')">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+    <span class="nav-label">Главная</span>
+  </div>
+  <div class="nav-item" id="nav-list" onclick="navTo('list')">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span class="nav-label" id="nav-list-label">Заказы</span>
+  </div>
+  <div class="nav-item" id="nav-profile" onclick="navTo('profile')">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    <span class="nav-label">Профиль</span>
+  </div>
+</nav>
+
+<!-- FAB -->
+<div class="fab hidden" id="fab" onclick="navigate('screen-create-job')">
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+    <path d="M11 4v14M4 11h14" stroke="#000" stroke-width="2.5" stroke-linecap="round"/>
+  </svg>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal-sheet" id="modal-sheet">
+    <div class="modal-handle"></div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+// ============ CONFIG ============
+const SUPABASE_URL = 'https://uptmyirrussiitqzvjeu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVwdG15aXJydXNzaWl0cXp2amV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzU1MjcsImV4cCI6MjA5Mjg1MTUyN30.GgiXFG_wUgtTISaoLWcU7h12Wb7pXjn9W6yDExllipQ';
+
+// ============ SUPABASE CLIENT ============
+const sb = {
+  async query(path, opts = {}) {
+    const url = `${SUPABASE_URL}/rest/v1/${path}`;
+    const res = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': opts.prefer || 'return=representation',
+        ...opts.headers
+      },
+      method: opts.method || 'GET',
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  },
+
+  async select(table, params = '') {
+    return this.query(`${table}?${params}`);
+  },
+
+  async insert(table, data) {
+    // Use return=representation to always get back inserted row
+    const url = `${SUPABASE_URL}/rest/v1/${table}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  },
+
+  async update(table, data, match) {
+    return this.query(`${table}?${match}`, { method: 'PATCH', body: data });
+  },
+
+  async upsert(table, data, onConflict) {
+    return this.query(table, {
+      method: 'POST',
+      body: data,
+      prefer: `resolution=merge-duplicates,return=representation`,
+      headers: onConflict ? { 'Prefer': `resolution=merge-duplicates,return=representation` } : {}
+    });
+  }
+};
+
+// ============ STATE ============
+const state = {
+  role: null,
+  currentScreen: 'screen-loading',
+  prevScreen: null,
+  currentOrderId: null,
+  currentMonter: null,
+  user: null,
+  tgUser: null,
+};
+
+// ============ TELEGRAM INIT ============
+function dbg(msg) {
+  console.log('[EDITEX]', msg);
+  const el = document.getElementById('load-status');
+  if (el) el.textContent = msg;
+}
+
+async function initApp() {
+  dbg('Старт...');
+
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  const tgUserRaw = tg?.initDataUnsafe?.user;
+  if (tgUserRaw) {
+    state.tgUser = tgUserRaw;
+    dbg('TG пользователь: ' + tgUserRaw.id);
+  } else {
+    let stored = null;
+    try { stored = localStorage.getItem('_editex_uid'); } catch(e) {}
+    const uid = stored || String(Date.now());
+    try { if (!stored) localStorage.setItem('_editex_uid', uid); } catch(e) {}
+    state.tgUser = { id: uid, first_name: '', username: '' };
+    dbg('Браузер ID: ' + uid);
+  }
+
+  // Step 1: ping supabase
+  dbg('Проверка соединения...');
+  let pingOk = false;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/users?limit=1`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    dbg('Ping статус: ' + r.status);
+    if (!r.ok) {
+      const t = await r.text();
+      showLoadError('Supabase ответил ' + r.status + ':<br><code>' + escHtml(t.slice(0,200)) + '</code>');
+      return;
+    }
+    pingOk = true;
+  } catch(e) {
+    showLoadError('Сеть недоступна:<br>' + e.message + '<br><br>Проверь URL и ключ в коде.');
+    return;
+  }
+
+  if (!pingOk) return;
+
+  // Step 2: load or create user
+  dbg('Загрузка пользователя...');
+  try {
+    await loadOrCreateUser();
+  } catch(e) {
+    console.error(e);
+    showLoadError('Ошибка loadOrCreateUser:<br>' + e.message);
+  }
+}
+
+function showLoadError(msg) {
+  document.getElementById('screen-loading').innerHTML = `
+    <div style="text-align:center;padding:40px 28px;max-width:340px;margin:0 auto;">
+      <div style="font-size:48px;margin-bottom:20px;">⚠️</div>
+      <div class="display-title" style="font-size:18px;margin-bottom:12px;color:#ff5050;">Ошибка запуска</div>
+      <div style="font-size:13px;color:var(--muted2);line-height:1.6;margin-bottom:28px;">${msg}</div>
+      <button class="btn btn-primary" onclick="location.reload()">🔄 Перезапустить</button>
+    </div>`;
+}
+
+// ============ USER MANAGEMENT ============
+async function loadOrCreateUser() {
+  const telegramId = String(state.tgUser.id);
+
+  // 1. Try to find existing user
+  let users = null;
+  try {
+    users = await sb.select('users', `telegram_id=eq.${telegramId}&limit=1`);
+  } catch(e) {
+    showLoadError('Ошибка чтения users:<br>' + e.message);
+    return;
+  }
+
+  if (users && users.length > 0) {
+    state.user = users[0];
+    state.role = state.user.role || null;
+    if (state.role) {
+      await enterDashboard();
+    } else {
+      showScreen('screen-onboarding');
+    }
+    return;
+  }
+
+  // 2. New user — insert then re-fetch (handles Prefer header issues)
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        telegram_id: telegramId,
+        username: state.tgUser.username || state.tgUser.first_name || '',
+        role: null
+      })
+    });
+  } catch(e) {
+    showLoadError('Ошибка создания пользователя:<br>' + e.message);
+    return;
+  }
+
+  // 3. Re-fetch after insert
+  try {
+    const fresh = await sb.select('users', `telegram_id=eq.${telegramId}&limit=1`);
+    if (fresh && fresh.length > 0) {
+      state.user = fresh[0];
+    } else {
+      // Fallback: create minimal local object so app can proceed
+      state.user = { telegram_id: telegramId, id: null, role: null };
+    }
+  } catch(e) {
+    state.user = { telegram_id: telegramId, id: null, role: null };
+  }
+
+  showScreen('screen-onboarding');
+}
+
+async function doLogin() {
+  const btn = document.getElementById('login-btn');
+  const usernameRaw = (document.getElementById('login-username').value || '').trim().replace(/^@/, '');
+  const passRaw = (document.getElementById('login-password')?.value || '').trim();
+
+  if (!usernameRaw) { showToast('⚠️ Введите username'); return; }
+  if (!passRaw) { showToast('⚠️ Введите пароль'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Входим...';
+
+  const passwordHash = simpleHash(passRaw);
+
+  try {
+    // Search by tg_username + password_hash
+    let users = await sb.select('users',
+      `tg_username=eq.${encodeURIComponent(usernameRaw)}&password_hash=eq.${encodeURIComponent(passwordHash)}&limit=1`
+    );
+
+    if (!users || users.length === 0) {
+      // Try without password to give better error
+      const byName = await sb.select('users', `tg_username=eq.${encodeURIComponent(usernameRaw)}&limit=1`);
+      if (byName && byName.length > 0) {
+        showToast('❌ Неверный пароль');
+      } else {
+        showToast('❌ Аккаунт не найден — зарегистрируйтесь');
+      }
+      btn.disabled = false;
+      btn.textContent = 'Войти →';
+      return;
+    }
+
+    const user = users[0];
+    if (!user.role) {
+      showToast('❌ Аккаунт не завершён — зарегистрируйтесь');
+      btn.disabled = false;
+      btn.textContent = 'Войти →';
+      return;
+    }
+
+    state.user = user;
+    state.tgUser = state.tgUser || { id: user.telegram_id };
+    state.role = user.role;
+    showToast('✅ Добро пожаловать, ' + (user.username || '') + '!', 'success');
+    setTimeout(() => enterDashboard(), 500);
+  } catch(e) {
+    console.error('doLogin error:', e);
+    showToast('❌ Ошибка: ' + sbError(e).slice(0, 60));
+    btn.disabled = false;
+    btn.textContent = 'Войти →';
+  }
+}
+
+async function enterDashboard() {
+  // Clear caches on fresh login
+  state._montersCache = null;
+  state._ordersCache = null;
+  updateHeaderUI();
+  const dash = state.role === 'client' ? 'screen-client-dashboard' : 'screen-editor-dashboard';
+  showScreen(dash);
+  if (state.role === 'client') {
+    await loadMonters();
+  } else {
+    await loadOrders();
+  }
+}
+
+function updateHeaderUI() {
+  if (!state.user) return;
+  const name = state.user.username || state.tgUser?.first_name || 'Пользователь';
+  const initials = name.slice(0, 2).toUpperCase();
+
+  const clientGreet = document.getElementById('client-greeting');
+  const editorGreet = document.getElementById('editor-greeting');
+  const clientAva = document.getElementById('client-avatar');
+  const editorAva = document.getElementById('editor-avatar');
+
+  if (clientGreet) clientGreet.textContent = name + ' 👋';
+  if (editorGreet) editorGreet.textContent = name + ' ✂️';
+  if (clientAva) clientAva.textContent = initials;
+  if (editorAva) editorAva.textContent = initials;
+
+  // Set nav label
+  const navListLabel = document.getElementById('nav-list-label');
+  if (navListLabel) navListLabel.textContent = state.role === 'client' ? 'Заказы' : 'Отклики';
+}
+
+// ============ LOAD MONTERS (for client dashboard) ============
+async function loadMonters(cat = 'all') {
+  const container = document.getElementById('editors-list');
+  container.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+
+  try {
+    if (!state._montersCache || state._montersCache.length === 0) {
+      const monters = await sb.select('users', `role=eq.monter&order=created_at.desc`);
+      state._montersCache = monters || [];
+    }
+
+    let list = state._montersCache;
+
+    // Filter by category (specialty field)
+    if (cat !== 'all') {
+      list = list.filter(m => (m.specialty || '').toLowerCase().includes(cat));
+    }
+
+    if (!list || list.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">✂️</div>
+          <div class="empty-state-title">${cat === 'all' ? 'Монтажёров пока нет' : 'Нет монтажёров в этой категории'}</div>
+          <div class="empty-state-desc">Скоро здесь появятся профессиональные монтажёры</div>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = list.map((m, i) => renderMonterCard(m, i)).join('');
+  } catch (e) {
+    console.error('loadMonters error:', e);
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+function filterMonters(el) {
+  el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const cat = el.getAttribute('data-cat') || 'all';
+  loadMonters(cat);
+}
+
+function renderMonterCard(user, idx) {
+  const name = user.username || 'Монтажёр';
+  const initials = name.slice(0, 2).toUpperCase();
+  const colors = [
+    'linear-gradient(135deg,#e8ff47,#a3b71a)',
+    'linear-gradient(135deg,#ff6b35,#cc4410)',
+    'linear-gradient(135deg,#60a5fa,#2563eb)',
+    'linear-gradient(135deg,#a78bfa,#7c3aed)',
+    'linear-gradient(135deg,#4ade80,#16a34a)',
+  ];
+  const color = colors[idx % colors.length];
+
+  const specMap = {
+    reels: { label: 'Reels/Shorts', cls: 'tag-orange' },
+    youtube: { label: 'YouTube', cls: 'tag-blue' },
+    clips: { label: 'Клипы', cls: 'tag-green' },
+  };
+  const specs = (user.specialty || '').split(',').map(s => s.trim()).filter(Boolean);
+  const tagsHtml = specs.length > 0
+    ? specs.map(s => {
+        const m = specMap[s] || { label: s, cls: 'tag-gray' };
+        return `<span class="tag ${m.cls}">${m.label}</span>`;
+      }).join('')
+    : '<span class="tag tag-gray">Монтаж</span>';
+
+  const exp = user.experience ? `<span style="font-size:11px;color:var(--muted2);">📅 ${escHtml(user.experience)}</span>` : '';
+
+  return `
+    <div class="editor-card fade-up" style="animation-delay:${idx * 0.05}s" onclick="viewMonterProfile('${user.id}')">
+      <div class="editor-card-top">
+        <div class="avatar" style="width:52px;height:52px;font-size:18px;background:${color};">${initials}</div>
+        <div class="editor-meta">
+          <div class="editor-name">${escHtml(name)}</div>
+          ${exp}
+          <div class="editor-stats" style="margin-top:4px;">
+            <div class="editor-price">Открыт к заказам</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <div class="status-dot"></div>
+        </div>
+      </div>
+      <div class="editor-tags" style="margin-top:10px;">${tagsHtml}</div>
+    </div>`;
+}
+
+function viewMonterProfile(userId) {
+  viewMonterProfileFull(userId);
+}
+
+async function viewMonterProfileFull(userId) {
+  const screen = document.getElementById('editor-profile-content');
+  screen.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+  navigate('screen-editor-profile');
+  try {
+    const users = await sb.select('users', `id=eq.${userId}&limit=1`);
+    const user = users?.[0];
+    if (!user) { screen.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Монтажёр не найден</div></div>'; return; }
+    // Load portfolio for this monter
+    let portfolio = [];
+    try {
+      const pRows = await sb.select('portfolio', `user_id=eq.${userId}&order=created_at.asc`);
+      if (pRows) portfolio = pRows;
+    } catch(e) {}
+    renderMonterProfileById(user, portfolio);
+  } catch(e) {
+    console.error(e);
+    screen.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+async function renderMonterProfileById(user, portfolio = []) {
+  const name = user.username || 'Монтажёр';
+  const initials = name.slice(0, 2).toUpperCase();
+  const tgHandle = user.tg_username || '';
+  const bio = user.bio || '';
+  const exp = user.experience || '';
+  const specs = (user.specialty || '').split(',').map(s => s.trim()).filter(Boolean);
+  const specLabels = { reels: '📱 Reels/Shorts', youtube: '🎬 YouTube', clips: '🎵 Клипы' };
+  const specTagsHtml = specs.length > 0
+    ? specs.map(s => `<span class="tag tag-orange">${specLabels[s] || s}</span>`).join('')
+    : '<span class="tag tag-gray">Монтаж</span>';
+
+  // Portfolio cards
+  let portfolioHtml = '';
+  if (portfolio.length > 0) {
+    portfolioHtml = portfolio.map(p => {
+      const isYT = p.url && (p.url.includes('youtube') || p.url.includes('youtu.be'));
+      const isVimeo = p.url && p.url.includes('vimeo');
+      const isGDrive = p.url && p.url.includes('drive.google');
+      const isYaDisk = p.url && (p.url.includes('disk.yandex') || p.url.includes('yadi.sk'));
+      const icon = isYT ? '▶️' : isVimeo ? '🎞' : isGDrive ? '📁' : isYaDisk ? '💾' : '🎬';
+      const title = p.title || (isYT ? 'YouTube' : isGDrive ? 'Google Drive' : isYaDisk ? 'Яндекс Диск' : 'Видео');
+      return `
+        <a href="${escHtml(p.url)}" target="_blank" style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:12px 14px;text-decoration:none;color:var(--text);transition:border-color 0.15s;" onmouseenter="this.style.borderColor='rgba(255,255,255,0.15)'" onmouseleave="this.style.borderColor='rgba(255,255,255,0.07)'">
+          <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#1e1e22,#2a2a30);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">${icon}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:13px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(title)}</div>
+            <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(p.url)}</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3h7v7M13 3L3 13" stroke="#6b6b72" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </a>`;
+    }).join('<div style="height:8px;"></div>');
+  } else {
+    portfolioHtml = `<div style="text-align:center;padding:24px 0;color:var(--muted2);font-size:13px;">Портфолио пока пусто</div>`;
+  }
+
+  // Load deal count + rating for this monter
+  let monterDeals = 0;
+  try {
+    const dr = await sb.select('reviews', `reviewee_id=eq.${user.id}&deal_happened=eq.true&select=id`);
+    monterDeals = dr ? dr.length : 0;
+  } catch(e) {}
+  const ratingDisplay = user.rating ? `⭐ ${Number(user.rating).toFixed(1)}` : '—';
+
+  document.getElementById('editor-profile-content').innerHTML = `
+    <div class="profile-hero">
+      <div class="profile-avatar">${initials}</div>
+      <div class="profile-name">${escHtml(name)}</div>
+      <div class="profile-handle">${tgHandle ? '@' + tgHandle + ' • ' : ''}Монтажёр</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:4px;">
+        ${specTagsHtml}
+      </div>
+      ${exp ? `<div style="font-size:12px;color:var(--muted2);margin-top:4px;">📅 ${escHtml(exp)}</div>` : ''}
+      <div style="display:flex;gap:24px;justify-content:center;margin-top:14px;">
+        <div style="text-align:center;"><div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:#fbbf24;">${ratingDisplay}</div><div style="font-size:11px;color:var(--muted);">Рейтинг</div></div>
+        <div style="text-align:center;"><div style="font-family:var(--font-display);font-size:18px;font-weight:700;">${monterDeals}</div><div style="font-size:11px;color:var(--muted);">Сделок</div></div>
+      </div>
+    </div>
+
+    ${bio ? `<div style="padding:0 20px;margin-bottom:0;"><div style="background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px;"><div style="font-size:12px;color:var(--accent);font-weight:600;margin-bottom:6px;">О себе</div><div style="font-size:13px;color:var(--muted2);line-height:1.6;">${escHtml(bio)}</div></div></div>` : ''}
+
+    <div style="padding:16px 20px 4px;">
+      <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">
+        Портфолио <span style="color:var(--muted);font-size:11px;">${portfolio.length}/5</span>
+      </div>
+      ${portfolioHtml}
+    </div>
+
+    <div style="padding:16px 20px 100px;">
+      ${tgHandle ? `<button class="connect-btn" onclick="openTelegramUser('${tgHandle}')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#26b6ff"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.9 8.2l-2 9.4c-.1.6-.5.8-.9.5l-2.5-1.8-1.2 1.1c-.1.1-.3.2-.6.2l.2-2.8 5.2-4.7c.2-.2 0-.3-.3-.1L7.1 14.4l-2.5-.8c-.5-.2-.5-.5.1-.8l11.5-4.4c.5-.2.9.1.7.8z"/></svg>
+        Написать в Telegram
+      </button>` : '<div style="text-align:center;font-size:12px;color:var(--muted);">Контакт не указан</div>'}
+    </div>`;
+}
+
+// ============ LOAD ORDERS (for editor dashboard) ============
+function filterOrders(el) {
+  el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const f = el.getAttribute('data-filter') || 'all';
+  loadOrders(f);
+}
+
+async function loadOrders(filter = 'all') {
+  const container = document.getElementById('jobs-list');
+  container.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+
+  try {
+    // Cache all open orders
+    if (!state._ordersCache) {
+      state._ordersCache = await sb.select('orders', `status=eq.open&order=created_at.desc`) || [];
+    }
+    let orders = state._ordersCache;
+
+    // Filter
+    if (filter === 'urgent') orders = orders.filter(o => (o.tags||'').includes('urgent'));
+    else if (filter === 'highbudget') orders = orders.filter(o => (o.tags||'').includes('highbudget'));
+    else if (filter !== 'all') orders = orders.filter(o => (o.category||'') === filter);
+
+    if (!orders || orders.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📭</div>
+          <div class="empty-state-title">Заказов пока нет</div>
+          <div class="empty-state-desc">Скоро здесь появятся новые заказы от клиентов</div>
+        </div>`;
+      return;
+    }
+
+    // Load proposal counts per order
+    const orderIds = orders.map(o => o.id);
+    let proposalCounts = {};
+    try {
+      const proposals = await sb.select('proposals', `order_id=in.(${orderIds.join(',')})&select=order_id`);
+      if (proposals) {
+        proposals.forEach(p => {
+          proposalCounts[p.order_id] = (proposalCounts[p.order_id] || 0) + 1;
+        });
+      }
+    } catch(e) {}
+
+    container.innerHTML = orders.map((order, i) => renderOrderCard(order, proposalCounts[order.id] || 0, i)).join('');
+  } catch (e) {
+    console.error('loadOrders error:', e);
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+function renderOrderCard(order, proposalCount, idx) {
+  const date = order.created_at ? new Date(order.created_at).toLocaleDateString('ru-RU') : '';
+  const statusTag = getStatusTag(order.status);
+  const budget = order.price ? `${Number(order.price).toLocaleString('ru-RU')} ₽` : 'Не указан';
+  const catLabels = { reels: '📱 Reels', youtube: '🎬 YouTube', clips: '🎵 Клипы' };
+  const catTag = order.category && catLabels[order.category]
+    ? `<span class="tag tag-blue" style="font-size:10px;">${catLabels[order.category]}</span>` : '';
+  const urgentTag = (order.tags||'').includes('urgent') ? `<span class="tag tag-orange" style="font-size:10px;">📦 Срочно</span>` : '';
+  const highTag = (order.tags||'').includes('highbudget') ? `<span class="tag tag-yellow" style="font-size:10px;">💰 Высокий</span>` : '';
+
+  return `
+    <div class="job-card fade-up" style="animation-delay:${idx * 0.05}s" onclick="openJobDetail('${order.id}')">
+      <div class="job-card-header">
+        <div class="job-title">${escHtml(order.title)}</div>
+        <div class="job-budget">${budget}</div>
+      </div>
+      ${catTag || urgentTag || highTag ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">${catTag}${urgentTag}${highTag}</div>` : ''}
+      <div class="job-desc">${escHtml(order.description || '')}</div>
+      <div class="job-footer">
+        <div class="job-meta">
+          <div class="job-meta-item">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#6b6b72" stroke-width="1.2"/><path d="M6 3v3l2 1.5" stroke="#6b6b72" stroke-width="1.2" stroke-linecap="round"/></svg>
+            ${date}
+          </div>
+          <div class="job-meta-item">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 9.5C2 8.1 3.3 7 5 7H7C8.7 7 10 8.1 10 9.5" stroke="#6b6b72" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="4" r="2" stroke="#6b6b72" stroke-width="1.2"/></svg>
+            ${proposalCount} ${declension(proposalCount, ['отклик', 'отклика', 'откликов'])}
+          </div>
+        </div>
+        ${statusTag}
+      </div>
+    </div>`;
+}
+
+// ============ OPEN JOB DETAIL ============
+async function openJobDetail(orderId) {
+  state.currentOrderId = orderId;
+  document.getElementById('job-detail-content').innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+  document.getElementById('editor-response-section').style.display = 'none';
+  document.getElementById('client-responses-section').style.display = 'none';
+
+  navigate('screen-job-detail');
+
+  try {
+    const orders = await sb.select('orders', `id=eq.${orderId}&limit=1`);
+    const order = orders?.[0];
+    if (!order) { showToast('❌ Заказ не найден'); return; }
+
+    // Get client info
+    let clientName = 'Заказчик';
+    let clientUsername = '';
+    try {
+      const clients = await sb.select('users', `id=eq.${order.client_id}&limit=1`);
+      if (clients?.[0]) {
+        clientName = clients[0].username || 'Заказчик';
+        clientUsername = clients[0].username || '';
+      }
+    } catch(e) {}
+
+    const titleShort = order.title.length > 22 ? order.title.slice(0, 22) + '…' : order.title;
+    document.getElementById('job-detail-header').textContent = titleShort;
+
+    const budget = order.price ? `${Number(order.price).toLocaleString('ru-RU')} ₽` : 'Не указан';
+    const isClientRole = state.role === 'client';
+    const isMyOrder = state.user && order.client_id === state.user.id;
+
+    document.getElementById('job-detail-content').innerHTML = `
+      <div style="margin-bottom:8px;">
+        <div class="tag tag-green" style="margin-bottom:12px;">${getStatusLabel(order.status)}</div>
+        <h2 class="display-title" style="font-size:18px;line-height:1.25;margin-bottom:12px;">${escHtml(order.title)}</h2>
+        <p style="font-size:14px;color:var(--muted2);line-height:1.65;">${escHtml(order.description || '')}</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0;">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Бюджет</div>
+          <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--accent);">${budget}</div>
+        </div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Статус</div>
+          <div style="font-size:13px;font-weight:600;">${getStatusLabel(order.status)}</div>
+        </div>
+      </div>
+
+      <div class="client-row" style="cursor:pointer;" onclick="viewClientProfile('${order.client_id}')">
+        <div class="avatar" style="width:36px;height:36px;font-size:12px;background:var(--bg3);">${clientName.slice(0,2).toUpperCase()}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${escHtml(clientName)}</div>
+          <div style="font-size:11px;color:var(--muted);">Заказчик — нажмите для профиля</div>
+        </div>
+        ${!isClientRole && clientUsername ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openTelegramUser('${clientUsername}')">Написать</button>` : ''}
+      </div>`;
+
+    // Show appropriate section
+    if (isClientRole || isMyOrder) {
+      document.getElementById('client-responses-section').style.display = 'block';
+      await loadProposals(orderId);
+    } else {
+      // Check if monter already submitted a proposal
+      const myProposals = await sb.select('proposals', `order_id=eq.${orderId}&monter_id=eq.${state.user.id}&limit=1`);
+      if (myProposals && myProposals.length > 0) {
+        const myP = myProposals[0];
+        const isDone = order.status === 'done';
+        const isAccepted = myP.status === 'accepted';
+        const reviewBtn = (isDone && isAccepted)
+          ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="showReviewModal('${order.client_id}','${orderId}','client')">⭐ Оценить заказчика</button>`
+          : '';
+        document.getElementById('editor-response-section').innerHTML = `
+          <div style="padding:20px;">
+            <div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);border-radius:14px;padding:14px;text-align:center;">
+              <div style="font-size:20px;margin-bottom:8px;">${isAccepted ? '🎉' : '✅'}</div>
+              <div style="font-weight:600;color:#4ade80;margin-bottom:4px;">${isAccepted ? 'Вы выбраны!' : 'Отклик отправлен'}</div>
+              <div style="font-size:12px;color:var(--muted2);">Ваша цена: ${Number(myP.price).toLocaleString('ru-RU')} ₽</div>
+              ${reviewBtn}
+            </div>
+          </div>`;
+        document.getElementById('editor-response-section').style.display = 'block';
+      } else {
+        document.getElementById('editor-response-section').style.display = 'block';
+      }
+    }
+
+  } catch (e) {
+    console.error('openJobDetail error:', e);
+    document.getElementById('job-detail-content').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+// ============ LOAD PROPOSALS ============
+async function loadProposals(orderId) {
+  const container = document.getElementById('proposals-list');
+  container.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка откликов...</div>';
+
+  try {
+    // Get order to know current status
+    const orderRows = await sb.select('orders', `id=eq.${orderId}&limit=1`);
+    const order = orderRows?.[0] || {};
+
+    const proposals = await sb.select('proposals', `order_id=eq.${orderId}&order=created_at.asc`);
+    if (!proposals || proposals.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">Откликов пока нет</div><div class="empty-state-desc">Монтажёры ещё не откликнулись на ваш заказ</div></div>';
+      return;
+    }
+
+    // Get monter details including experience
+    const monterIds = [...new Set(proposals.map(p => p.monter_id))];
+    let monters = {};
+    try {
+      const users = await sb.select('users', `id=in.(${monterIds.join(',')})&select=id,username,tg_username,experience,rating`);
+      if (users) users.forEach(u => monters[u.id] = u);
+    } catch(e) {}
+
+    // Get completed deal counts per monter
+    let dealCounts = {};
+    try {
+      for (const mid of monterIds) {
+        const deals = await sb.select('reviews', `reviewee_id=eq.${mid}&deal_happened=eq.true&select=id`);
+        dealCounts[mid] = deals ? deals.length : 0;
+      }
+    } catch(e) {}
+
+    // Show complete/cancel buttons if order is in_progress and it's client's own
+    const isMyOrder = state.user && order.client_id === state.user.id;
+    const isInProgress = order.status === 'in_progress';
+
+    let actionBtns = '';
+    if (isMyOrder && isInProgress) {
+      actionBtns = `
+        <div style="display:flex;gap:8px;padding:0 20px 16px;">
+          <button class="btn btn-primary btn-sm" style="flex:1;" onclick="markOrderDone('${orderId}')">✅ Заказ выполнен</button>
+          <button class="btn btn-danger btn-sm" style="flex:1;" onclick="cancelOrder('${orderId}')">❌ Отменить</button>
+        </div>`;
+    }
+
+    container.innerHTML = actionBtns + proposals.map(p => {
+      const m = monters[p.monter_id] || {};
+      const name = m.username || 'Монтажёр';
+      const initials = name.slice(0, 2).toUpperCase();
+      const tgHandle = m.tg_username || m.username || '';
+      const price = p.price ? `${Number(p.price).toLocaleString('ru-RU')} ₽` : 'Не указана';
+      const statusTag = p.status === 'accepted' ? '<span class="tag tag-green">✅ Принят</span>' :
+                        p.status === 'rejected' ? '<span class="tag tag-gray">Отклонён</span>' :
+                        '<span class="tag tag-yellow">⏳ Ждёт</span>';
+      const exp = m.experience ? `<span style="font-size:11px;color:var(--muted2);">📅 ${escHtml(m.experience)}</span>` : '';
+      const deals = dealCounts[p.monter_id] || 0;
+      const dealBadge = `<span style="font-size:11px;color:var(--muted2);">✅ ${deals} ${declension(deals, ['сделка','сделки','сделок'])}</span>`;
+      const rating = m.rating ? `<span style="font-size:11px;color:#fbbf24;">⭐ ${Number(m.rating).toFixed(1)}</span>` : '';
+
+      return `
+        <div class="response-card">
+          <div class="review-header">
+            <div class="avatar" style="width:40px;height:40px;font-size:14px;background:var(--bg3);cursor:pointer;" onclick="viewMonterProfile('${p.monter_id}')">${initials}</div>
+            <div style="flex:1;">
+              <div style="font-weight:600;font-size:13px;cursor:pointer;" onclick="viewMonterProfile('${p.monter_id}')">${escHtml(name)}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">${statusTag}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">${exp}${dealBadge}${rating}</div>
+            </div>
+            <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--accent);">${price}</div>
+          </div>
+          ${p.comment ? `<div style="font-size:13px;color:var(--muted2);line-height:1.5;margin:8px 0 10px;">${escHtml(p.comment)}</div>` : ''}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${p.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptProposal('${p.id}','${orderId}')">Выбрать</button>` : ''}
+            ${tgHandle ? `<button class="btn btn-secondary btn-sm" onclick="openTelegramUser('${tgHandle}')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#26b6ff"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.9 8.2l-2 9.4c-.1.6-.5.8-.9.5l-2.5-1.8-1.2 1.1c-.1.1-.3.2-.6.2l.2-2.8 5.2-4.7c.2-.2 0-.3-.3-.1L7.1 14.4l-2.5-.8c-.5-.2-.5-.5.1-.8l11.5-4.4c.5-.2.9.1.7.8z"/></svg>
+              Написать
+            </button>` : ''}
+            ${p.status === 'accepted' && order.status === 'done' ? `<button class="btn btn-ghost btn-sm" onclick="showReviewModal('${p.monter_id}','${orderId}','monter')">⭐ Оценить</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    console.error('loadProposals error:', e);
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+// ============ ACCEPT PROPOSAL ============
+async function acceptProposal(proposalId, orderId) {
+  try {
+    // Get monter_id from proposal
+    const props = await sb.select('proposals', `id=eq.${proposalId}&limit=1`);
+    const monterId = props?.[0]?.monter_id || null;
+    await sb.update('proposals', { status: 'accepted' }, `id=eq.${proposalId}`);
+    await sb.update('orders', { status: 'in_progress', monter_id: monterId }, `id=eq.${orderId}`);
+    state._ordersCache = null;
+    showToast('✅ Монтажёр выбран!', 'success');
+    await loadProposals(orderId);
+  } catch(e) {
+    console.error('acceptProposal error:', e);
+    showToast('❌ ' + sbError(e).slice(0, 100));
+  }
+}
+
+// ============ ORDER DONE / CANCEL ============
+async function markOrderDone(orderId) {
+  try {
+    await sb.update('orders', { status: 'done' }, `id=eq.${orderId}`);
+    state._ordersCache = null;
+    showToast('✅ Заказ отмечен как выполненный', 'success');
+    await loadProposals(orderId);
+    // Reload job detail hero to show new status
+    const orders = await sb.select('orders', `id=eq.${orderId}&limit=1`);
+    if (orders?.[0]) {
+      const o = orders[0];
+      document.querySelector('#job-detail-content .tag') &&
+        (document.querySelector('#job-detail-content .tag').textContent = getStatusLabel(o.status));
+    }
+  } catch(e) {
+    showToast('❌ ' + sbError(e).slice(0,80));
+  }
+}
+
+async function cancelOrder(orderId) {
+  try {
+    await sb.update('orders', { status: 'cancelled' }, `id=eq.${orderId}`);
+    state._ordersCache = null;
+    showToast('Заказ отменён');
+    goBackToDash();
+    await loadMyJobs();
+  } catch(e) {
+    showToast('❌ ' + sbError(e).slice(0,80));
+  }
+}
+
+// ============ REVIEWS ============
+function showReviewModal(revieweeId, orderId, revieweeRole) {
+  const label = revieweeRole === 'monter' ? 'монтажёра' : 'заказчика';
+  openModal(`
+    <div class="display-title" style="font-size:16px;margin-bottom:6px;">Оценить ${label}</div>
+    <p style="font-size:12px;color:var(--muted2);margin-bottom:16px;">Оценка появится только когда обе стороны оставят отзыв</p>
+    <div style="margin-bottom:16px;">
+      <div class="input-label" style="margin-bottom:8px;">Сделка состоялась?</div>
+      <div style="display:flex;gap:8px;">
+        <div class="chip active" id="deal-yes" onclick="setDeal(true)">✅ Да, состоялась</div>
+        <div class="chip" id="deal-no" onclick="setDeal(false)">❌ Нет</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Рейтинг (1-5)</label>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          ${[1,2,3,4,5].map(n=>`<div class="chip" id="star-${n}" onclick="setStar(${n})" style="font-size:16px;">⭐</div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Комментарий</label>
+        <textarea class="input" rows="3" placeholder="Опишите опыт работы..." id="review-comment"></textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="submitReview('${revieweeId}','${orderId}','${revieweeRole}')">Отправить оценку</button>
+  `);
+  window._reviewDeal = true;
+  window._reviewStar = 5;
+  setStar(5);
+}
+
+function setDeal(val) {
+  window._reviewDeal = val;
+  document.getElementById('deal-yes').classList.toggle('active', val);
+  document.getElementById('deal-no').classList.toggle('active', !val);
+}
+function setStar(n) {
+  window._reviewStar = n;
+  [1,2,3,4,5].forEach(i => {
+    const el = document.getElementById('star-'+i);
+    if (el) el.classList.toggle('active', i <= n);
+  });
+}
+
+async function submitReview(revieweeId, orderId, revieweeRole) {
+  const comment = (document.getElementById('review-comment')?.value||'').trim();
+  try {
+    // Check if already reviewed
+    const existing = await sb.select('reviews', `reviewer_id=eq.${state.user.id}&order_id=eq.${orderId}&reviewee_id=eq.${revieweeId}&limit=1`);
+    if (existing && existing.length > 0) { showToast('⚠️ Вы уже оставили отзыв'); return; }
+
+    await sb.insert('reviews', {
+      reviewer_id: state.user.id,
+      reviewee_id: revieweeId,
+      order_id: orderId,
+      rating: window._reviewStar || 5,
+      comment: comment,
+      deal_happened: window._reviewDeal !== false,
+      reviewer_role: state.role,
+    });
+
+    // Recalculate average rating for reviewee
+    await recalcRating(revieweeId);
+
+    document.getElementById('modal').classList.remove('show');
+    showToast('✅ Оценка сохранена!', 'success');
+  } catch(e) {
+    showToast('❌ ' + sbError(e).slice(0,80));
+  }
+}
+
+async function recalcRating(userId) {
+  try {
+    const reviews = await sb.select('reviews', `reviewee_id=eq.${userId}&select=rating`);
+    if (!reviews || reviews.length === 0) return;
+    const avg = reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
+    await sb.update('users', { rating: Math.round(avg * 10) / 10 }, `id=eq.${userId}`);
+  } catch(e) {}
+}
+
+// Client profile view
+async function viewClientProfile(clientId) {
+  const screen = document.getElementById('client-profile-content');
+  screen.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+  navigate('screen-client-profile');
+  try {
+    const users = await sb.select('users', `id=eq.${clientId}&limit=1`);
+    const user = users?.[0];
+    if (!user) { screen.innerHTML = '<div class="empty-state">⚠️ Не найдено</div>'; return; }
+
+    // Count successful deals as client
+    let successDeals = 0;
+    try {
+      const r = await sb.select('reviews', `reviewee_id=eq.${clientId}&deal_happened=eq.true&select=id`);
+      successDeals = r ? r.length : 0;
+    } catch(e) {}
+
+    const name = user.username || 'Заказчик';
+    const initials = name.slice(0,2).toUpperCase();
+    const tgHandle = user.tg_username || '';
+    const rating = user.rating ? `⭐ ${Number(user.rating).toFixed(1)}` : 'Нет оценок';
+    const dealLabel = successDeals + ' ' + declension(successDeals, ['успешная сделка','успешные сделки','успешных сделок']);
+
+    screen.innerHTML = `
+      <div class="profile-hero">
+        <div class="profile-avatar">${initials}</div>
+        <div class="profile-name">${escHtml(name)}</div>
+        <div class="profile-handle">${tgHandle ? '@'+tgHandle+' • ' : ''}Заказчик</div>
+        <div style="display:flex;gap:16px;justify-content:center;margin-top:12px;">
+          <div style="text-align:center;"><div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--accent);">${rating}</div><div style="font-size:11px;color:var(--muted);">Рейтинг</div></div>
+          <div style="text-align:center;"><div style="font-family:var(--font-display);font-size:18px;font-weight:700;">${successDeals}</div><div style="font-size:11px;color:var(--muted);">Сделок</div></div>
+        </div>
+      </div>
+      <div style="padding:16px 20px 100px;">
+        <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:14px;padding:14px;margin-bottom:14px;text-align:center;">
+          <div style="font-size:13px;font-weight:600;color:#4ade80;">${dealLabel}</div>
+        </div>
+        ${tgHandle ? `<button class="connect-btn" onclick="openTelegramUser('${tgHandle}')">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#26b6ff"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.9 8.2l-2 9.4c-.1.6-.5.8-.9.5l-2.5-1.8-1.2 1.1c-.1.1-.3.2-.6.2l.2-2.8 5.2-4.7c.2-.2 0-.3-.3-.1L7.1 14.4l-2.5-.8c-.5-.2-.5-.5.1-.8l11.5-4.4c.5-.2.9.1.7.8z"/></svg>
+          Написать в Telegram
+        </button>` : ''}
+      </div>`;
+  } catch(e) {
+    screen.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка</div></div>';
+  }
+}
+
+// ============ LOAD MY JOBS (client) ============
+async function loadMyJobs() {
+  const container = document.getElementById('my-jobs-list');
+  container.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+
+  try {
+    const orders = await sb.select('orders', `client_id=eq.${state.user.id}&order=created_at.desc`);
+
+    if (!orders || orders.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-title">Заказов пока нет</div>
+          <div class="empty-state-desc">Создайте первый заказ, нажав кнопку + внизу экрана</div>
+        </div>`;
+      return;
+    }
+
+    const active = orders.filter(o => o.status !== 'done');
+    const done = orders.filter(o => o.status === 'done');
+
+    let html = '';
+    if (active.length) {
+      html += `<div class="section-title">Активные <span class="badge">${active.length}</span></div>`;
+      html += active.map((o, i) => renderMyOrderCard(o, i)).join('');
+    }
+    if (done.length) {
+      html += `<div class="section-title" style="margin-top:4px;">Завершённые</div>`;
+      html += done.map((o, i) => renderMyOrderCard(o, i, true)).join('');
+    }
+    container.innerHTML = html;
+  } catch(e) {
+    console.error(e);
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+function renderMyOrderCard(order, idx, faded = false) {
+  const budget = order.price ? `💰 ${Number(order.price).toLocaleString('ru-RU')} ₽` : '';
+  const date = new Date(order.created_at).toLocaleDateString('ru-RU');
+  const statusTag = getStatusTag(order.status);
+  return `
+    <div class="job-card" style="${faded ? 'opacity:0.6;' : ''}" onclick="openJobDetail('${order.id}')">
+      <div class="job-card-header">
+        <div class="job-title">${escHtml(order.title)}</div>
+        ${statusTag}
+      </div>
+      <div class="job-footer" style="margin-top:8px;">
+        <div class="job-meta">
+          ${budget ? `<div class="job-meta-item">${budget}</div>` : ''}
+          <div class="job-meta-item">${date}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ============ LOAD MY RESPONSES (monter) ============
+async function loadMyResponses() {
+  const container = document.getElementById('my-responses-list');
+  container.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+
+  try {
+    const proposals = await sb.select('proposals', `monter_id=eq.${state.user.id}&order=created_at.desc`);
+
+    if (!proposals || proposals.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📨</div>
+          <div class="empty-state-title">Откликов пока нет</div>
+          <div class="empty-state-desc">Откликайтесь на заказы, чтобы получать работу</div>
+        </div>`;
+      return;
+    }
+
+    // Load order titles
+    const orderIds = [...new Set(proposals.map(p => p.order_id))];
+    let orderMap = {};
+    try {
+      const orders = await sb.select('orders', `id=in.(${orderIds.join(',')})&select=id,title,client_id`);
+      if (orders) orders.forEach(o => orderMap[o.id] = o);
+    } catch(e) {}
+
+    // Load client usernames for messaging
+    const clientIds = [...new Set(Object.values(orderMap).map(o => o.client_id).filter(Boolean))];
+    let clientMap = {};
+    try {
+      if (clientIds.length) {
+        const clients = await sb.select('users', `id=in.(${clientIds.join(',')})&select=id,username`);
+        if (clients) clients.forEach(c => clientMap[c.id] = c);
+      }
+    } catch(e) {}
+
+    const pending = proposals.filter(p => p.status === 'pending');
+    const accepted = proposals.filter(p => p.status === 'accepted');
+    const rejected = proposals.filter(p => p.status === 'rejected');
+
+    let html = '';
+    const renderProposalCard = (p) => {
+      const order = orderMap[p.order_id] || {};
+      const title = order.title || 'Заказ';
+      const client = clientMap[order.client_id] || {};
+      const price = p.price ? `${Number(p.price).toLocaleString('ru-RU')} ₽` : '';
+      const statusTag = p.status === 'accepted' ? '<div class="tag tag-green">✅ Принят</div>' :
+                        p.status === 'rejected' ? '<div class="tag tag-gray">Отклонён</div>' :
+                        '<div class="tag tag-yellow">⏳ Ждём</div>';
+      return `
+        <div class="job-card" style="${p.status === 'accepted' ? 'border-color:rgba(74,222,128,0.2);' : ''}">
+          <div class="job-card-header">
+            <div class="job-title">${escHtml(title)}</div>
+            ${statusTag}
+          </div>
+          ${price ? `<div style="font-size:12px;color:var(--muted2);margin:6px 0 10px;">Ваша цена: <b style="color:var(--text);">${price}</b></div>` : ''}
+          ${client.username ? `<button class="btn ${p.status === 'accepted' ? 'btn-ghost' : 'btn-secondary'} btn-sm" onclick="openTelegramUser('${client.username}')">
+            ${p.status === 'accepted' ? 'Перейти в чат' : 'Написать заказчику'}
+          </button>` : ''}
+        </div>`;
+    };
+
+    if (pending.length) {
+      html += `<div class="section-title">Ожидание ответа <span class="badge">${pending.length}</span></div>`;
+      html += pending.map(renderProposalCard).join('');
+    }
+    if (accepted.length) {
+      html += `<div class="section-title" style="margin-top:4px;">Принятые</div>`;
+      html += accepted.map(renderProposalCard).join('');
+    }
+    if (rejected.length) {
+      html += `<div class="section-title" style="margin-top:4px;">Отклонённые</div>`;
+      html += rejected.map(renderProposalCard).join('');
+    }
+
+    container.innerHTML = html;
+  } catch(e) {
+    console.error(e);
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+// ============ RENDER MY PROFILE ============
+async function renderMyProfile() {
+  const isEditor = state.role === 'monter';
+  const name = state.user?.username || state.tgUser?.first_name || 'Пользователь';
+  const initials = name.slice(0, 2).toUpperCase();
+  const roleLabel = isEditor ? 'Монтажёр' : 'Заказчик';
+  const tgHandle = state.user?.tg_username || state.tgUser?.username || '';
+
+  // Load portfolio if editor
+  let portfolio = [];
+  if (isEditor) {
+    try {
+      const pRows = await sb.select('portfolio', `user_id=eq.${state.user.id}&order=created_at.asc`);
+      if (pRows) portfolio = pRows;
+    } catch(e) {}
+  }
+
+  // Load full user data fresh to avoid stale state
+  if (state.user?.id) {
+    try {
+      const fresh = await sb.select('users', `id=eq.${state.user.id}&limit=1`);
+      if (fresh?.[0]) {
+        state.user = fresh[0];
+        state.role = fresh[0].role || state.role;
+      }
+    } catch(e) {}
+  }
+
+  const specs = (state.user?.specialty || '').split(',').map(s => s.trim()).filter(Boolean);
+  const specLabels = { reels: '📱 Reels/Shorts', youtube: '🎬 YouTube', clips: '🎵 Клипы' };
+  const specTagsHtml = isEditor
+    ? (specs.length > 0 ? specs.map(s => `<span class="tag tag-orange">${specLabels[s] || s}</span>`).join('') : '<span style="font-size:12px;color:var(--muted);">Не указано</span>')
+    : '';
+
+  const portfolioSection = isEditor ? `
+    <div style="padding:0 20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;">
+          Портфолио <span style="color:var(--muted);font-size:11px;">${portfolio.length}/5</span>
+        </div>
+        ${portfolio.length < 5 ? `<button class="btn btn-ghost btn-sm" onclick="showAddPortfolioModal()">+ Добавить</button>` : '<span style="font-size:11px;color:var(--muted);">Максимум достигнут</span>'}
+      </div>
+      <div id="my-portfolio-list">
+        ${portfolio.length === 0
+          ? '<div style="text-align:center;padding:20px 0;color:var(--muted2);font-size:13px;">Нет видео — добавьте своё портфолио</div>'
+          : portfolio.map(p => {
+              const isYT = p.url && (p.url.includes('youtube') || p.url.includes('youtu.be'));
+              const icon = isYT ? '▶️' : '🎬';
+              const title = p.title || 'Видео';
+              return `
+                <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;">
+                  <div style="width:40px;height:40px;border-radius:10px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${icon}</div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(title)}</div>
+                    <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(p.url)}</div>
+                  </div>
+                  <button onclick="deletePortfolioItem('${p.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;flex-shrink:0;" title="Удалить">×</button>
+                </div>`;
+            }).join('')
+        }
+      </div>
+    </div>` : '';
+
+  document.getElementById('my-profile-content').innerHTML = `
+    <div class="profile-hero">
+      <div class="profile-avatar" style="border-color:rgba(232,255,71,0.3);">${initials}</div>
+      <div class="profile-name">${escHtml(name)}</div>
+      <div class="profile-handle">${tgHandle ? '@' + tgHandle + ' • ' : ''}${roleLabel}</div>
+    </div>
+
+    ${portfolioSection}
+
+    <div style="padding:${isEditor ? '16px' : '0'} 20px 0;">
+      ${isEditor ? `
+      <div style="margin-bottom:12px;">
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Специализация</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">${specTagsHtml}</div>
+        <button class="btn btn-secondary btn-sm" onclick="showEditSpecModal()">✏️ Изменить</button>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">О себе</div>
+        <div style="font-size:13px;color:var(--muted2);line-height:1.6;margin-bottom:8px;">${escHtml(state.user?.bio || 'Не заполнено')}</div>
+        <button class="btn btn-secondary btn-sm" onclick="showEditBioModal()">✏️ Изменить</button>
+      </div>
+      ` : ''}
+      <div class="card" style="margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--muted2);margin-bottom:4px;">Telegram ID</div>
+        <div style="font-size:13px;">${state.tgUser?.id || '—'}</div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-family:var(--font-display);font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Переключить аккаунт</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn ${state.role==='client'?'btn-primary':'btn-secondary'} btn-sm" style="flex:1;" onclick="switchRole('client')">🎬 Заказчик</button>
+          <button class="btn ${state.role==='monter'?'btn-primary':'btn-secondary'} btn-sm" style="flex:1;" onclick="switchRole('monter')">✂️ Монтажёр</button>
+        </div>
+      </div>
+      <button class="btn btn-danger" onclick="logout()">Выйти из аккаунта</button>
+    </div>
+    <div class="scroll-pad"></div>`;
+}
+
+function showEditBioModal() {
+  const current = state.user?.bio || '';
+  openModal(`
+    <div class="display-title" style="font-size:16px;margin-bottom:16px;">О себе</div>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Расскажите о себе</label>
+        <textarea class="input" rows="4" placeholder="Опыт, стиль работы, специализация..." id="edit-bio-val">${escHtml(current)}</textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveBio()">Сохранить</button>
+  `);
+}
+
+async function saveBio() {
+  const val = (document.getElementById('edit-bio-val')?.value || '').trim();
+  try {
+    await sb.update('users', { bio: val }, `telegram_id=eq.${state.tgUser.id}`);
+    state.user.bio = val;
+    showToast('✅ Сохранено!', 'success');
+    document.getElementById('modal').classList.remove('show');
+    showScreen('screen-my-profile');
+    await renderMyProfile();
+  } catch(e) {
+    showToast('❌ ' + sbError(e).slice(0,80));
+  }
+}
+
+function showEditSpecModal() {
+  const specs = (state.user?.specialty || '').split(',').map(s => s.trim()).filter(Boolean);
+  window._editSpecs = [...specs];
+  const specLabels = { reels: '📱 Reels/Shorts', youtube: '🎬 YouTube', clips: '🎵 Клипы' };
+  openModal(`
+    <div class="display-title" style="font-size:16px;margin-bottom:16px;">Специализация</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+      ${['reels','youtube','clips'].map(s => `
+        <div class="chip${specs.includes(s) ? ' active' : ''}" id="espec-${s}" onclick="toggleEditSpec('${s}')">${specLabels[s]}</div>
+      `).join('')}
+    </div>
+    <button class="btn btn-primary" onclick="saveSpec()">Сохранить</button>
+  `);
+}
+
+function toggleEditSpec(spec) {
+  if (!window._editSpecs) window._editSpecs = [];
+  const btn = document.getElementById('espec-' + spec);
+  const idx = window._editSpecs.indexOf(spec);
+  if (idx === -1) { window._editSpecs.push(spec); btn.classList.add('active'); }
+  else { window._editSpecs.splice(idx, 1); btn.classList.remove('active'); }
+}
+
+async function saveSpec() {
+  const val = (window._editSpecs || []).join(',');
+  try {
+    await sb.update('users', { specialty: val }, `telegram_id=eq.${state.tgUser.id}`);
+    state.user.specialty = val;
+    // Invalidate cache so dashboard refreshes
+    state._montersCache = null;
+    showToast('✅ Сохранено!', 'success');
+    document.getElementById('modal').classList.remove('show');
+    showScreen('screen-my-profile');
+    await renderMyProfile();
+  } catch(e) {
+    showToast('❌ ' + sbError(e).slice(0,80));
+  }
+}
+
+// ── Portfolio management ──
+function showAddPortfolioModal() {
+  openModal(`
+    <div class="display-title" style="font-size:16px;margin-bottom:16px;">Добавить в портфолио</div>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Название видео</label>
+        <input class="input" placeholder="Влог / Реклама / Клип..." id="pf-title">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Ссылка на видео *</label>
+        <input class="input" placeholder="https://youtube.com/..." id="pf-url" type="url">
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:8px;" onclick="savePortfolioItem()">Добавить видео</button>
+  `);
+}
+
+async function savePortfolioItem() {
+  const title = (document.getElementById('pf-title')?.value || '').trim();
+  const url = (document.getElementById('pf-url')?.value || '').trim();
+  if (!url) { showToast('⚠️ Введите ссылку на видео'); return; }
+  // Allow youtube, vimeo, google drive, yandex disk, and any https link
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    showToast('⚠️ Ссылка должна начинаться с https://');
+    return;
+  }
+
+  // Check limit
+  try {
+    const existing = await sb.select('portfolio', `user_id=eq.${state.user.id}&select=id`);
+    if (existing && existing.length >= 5) {
+      showToast('⚠️ Максимум 5 видео');
+      document.getElementById('modal').classList.remove('show');
+      return;
+    }
+  } catch(e) {}
+
+  try {
+    await sb.insert('portfolio', { user_id: state.user.id, title: title || 'Видео', url });
+    showToast('✅ Видео добавлено!', 'success');
+    document.getElementById('modal').classList.remove('show');
+    await renderMyProfile();
+    showScreen('screen-my-profile');
+  } catch(e) {
+    console.error(e);
+    showToast('❌ ' + sbError(e).slice(0, 80));
+  }
+}
+
+async function deletePortfolioItem(id) {
+  try {
+    await sb.query(`portfolio?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
+    showToast('🗑 Удалено', '');
+    await renderMyProfile();
+    showScreen('screen-my-profile');
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Ошибка удаления');
+  }
+}
+
+// ============ ACTIONS ============
+
+// Helper: extract readable error from Supabase response
+function sbError(e) {
+  try {
+    const p = JSON.parse(e.message);
+    return p.message || p.details || p.hint || JSON.stringify(p);
+  } catch(_) {
+    return e.message || 'Неизвестная ошибка';
+  }
+}
+
+async function submitJob() {
+  const title = document.getElementById('job-title').value.trim();
+  const desc = document.getElementById('job-desc').value.trim();
+  const budget = document.getElementById('job-budget').value;
+
+  if (!title || !desc || !budget) {
+    showToast('⚠️ Заполните обязательные поля');
+    return;
+  }
+
+  if (!state.user?.id) {
+    showToast('⚠️ Сессия истекла — перезайдите');
+    return;
+  }
+
+  const btn = document.getElementById('create-job-btn');
+  btn.disabled = true;
+  btn.textContent = 'Публикуем...';
+
+  // Schema: orders(id, created_at, client_id, monter_id, title, description, status, price, category, tags)
+  const payload = {
+    client_id: state.user.id,
+    monter_id: null,
+    title: title,
+    description: desc,
+    price: Number(budget),
+    status: 'open',
+    category: window._jobCat || null,
+    tags: window._jobTypes ? window._jobTypes.join(',') : null,
+  };
+
+  try {
+    const result = await sb.insert('orders', payload);
+    console.log('Order created:', result);
+    showToast('🚀 Заказ опубликован!', 'success');
+    document.getElementById('job-title').value = '';
+    document.getElementById('job-desc').value = '';
+    document.getElementById('job-budget').value = '';
+    document.getElementById('job-deadline').value = '';
+    window._jobCat = null; window._jobTypes = [];
+    ['reels','youtube','clips'].forEach(c => { const b=document.getElementById('jcat-'+c); if(b) b.classList.remove('active'); });
+    ['urgent','highbudget'].forEach(t => { const b=document.getElementById('jtype-'+t); if(b) b.classList.remove('active'); });
+    setTimeout(() => {
+      goBackToDash();
+      if (state.role === 'client') loadMyJobs();
+    }, 600);
+  } catch(e) {
+    console.error('submitJob error:', e);
+    showToast('❌ ' + sbError(e).slice(0, 100));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Опубликовать заказ 🚀';
+  }
+}
+
+async function submitResponse() {
+  const comment = document.getElementById('response-message').value.trim();
+  const price = document.getElementById('response-price').value;
+
+  if (!comment || !price) {
+    showToast('⚠️ Заполните все поля');
+    return;
+  }
+
+  if (!state.user?.id || !state.currentOrderId) {
+    showToast('⚠️ Данные не загружены, перезайдите');
+    return;
+  }
+
+  const btn = document.getElementById('response-btn');
+  btn.disabled = true;
+  btn.textContent = 'Отправляем...';
+
+  // Schema: proposals(id, created_at, order_id, monter_id, price, comment, status)
+  const payload = {
+    order_id: state.currentOrderId,
+    monter_id: state.user.id,
+    price: Number(price),
+    comment: comment,
+    status: 'pending',
+  };
+
+  try {
+    const result = await sb.insert('proposals', payload);
+    console.log('Proposal created:', result);
+    showToast('✅ Отклик отправлен!', 'success');
+
+    const priceFormatted = Number(price).toLocaleString('ru-RU');
+    document.getElementById('editor-response-section').innerHTML = `
+      <div style="padding:20px;">
+        <div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);border-radius:14px;padding:14px;text-align:center;">
+          <div style="font-size:20px;margin-bottom:8px;">✅</div>
+          <div style="font-weight:600;color:#4ade80;margin-bottom:4px;">Отклик отправлен</div>
+          <div style="font-size:12px;color:var(--muted2);">Ваша цена: ${priceFormatted} ₽</div>
+        </div>
+      </div>`;
+  } catch(e) {
+    console.error('submitResponse error:', e);
+    showToast('❌ ' + sbError(e).slice(0, 100));
+    btn.disabled = false;
+    btn.textContent = 'Отправить отклик';
+  }
+}
+
+// ============ NAVIGATION ============
+const state_nav = {};
+
+function navigate(screenId) {
+  state.prevScreen = state.currentScreen;
+  showScreen(screenId);
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active', 'slide-back'));
+  document.getElementById(id).classList.add('active');
+  state.currentScreen = id;
+  document.getElementById(id).scrollTop = 0;
+  updateNav();
+}
+
+function goBack(target) {
+  showScreen(state.prevScreen || target);
+}
+
+function goBackToDash() {
+  const dashId = state.role === 'client' ? 'screen-client-dashboard' : 'screen-editor-dashboard';
+  showScreen(dashId);
+}
+
+function updateNav() {
+  const s = state.currentScreen;
+  const navScreens = ['screen-client-dashboard', 'screen-editor-dashboard', 'screen-my-jobs', 'screen-my-responses', 'screen-my-profile'];
+  const showNav = navScreens.includes(s);
+
+  document.getElementById('bottom-nav').classList.toggle('hidden', !showNav);
+  document.getElementById('fab').classList.toggle('hidden', s !== 'screen-client-dashboard' || state.role !== 'client');
+
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  if (s.includes('dashboard')) document.getElementById('nav-home').classList.add('active');
+  else if (s.includes('my-jobs') || s.includes('my-responses')) document.getElementById('nav-list').classList.add('active');
+  else if (s.includes('my-profile')) document.getElementById('nav-profile').classList.add('active');
+}
+
+async function navTo(tab) {
+  if (tab === 'home') {
+    showScreen(state.role === 'client' ? 'screen-client-dashboard' : 'screen-editor-dashboard');
+    if (state.role === 'client') await loadMonters();
+    else await loadOrders();
+  } else if (tab === 'list') {
+    if (state.role === 'client') {
+      showScreen('screen-my-jobs');
+      await loadMyJobs();
+    } else {
+      showScreen('screen-my-responses');
+      await loadMyResponses();
+    }
+  } else if (tab === 'profile') {
+    showScreen('screen-my-profile');
+    await renderMyProfile();
+  }
+}
+
+// ============ ROLE SELECTION ============
+let selectedRole = null;
+
+function selectRole(role) {
+  selectedRole = role;
+  document.getElementById('role-client').classList.toggle('selected', role === 'client');
+  document.getElementById('role-editor').classList.toggle('selected', role === 'editor');
+  document.getElementById('check-client').style.display = role === 'client' ? 'block' : 'none';
+  document.getElementById('check-editor').style.display = role === 'editor' ? 'block' : 'none';
+  document.getElementById('continue-btn-wrap').style.display = 'block';
+
+  const isEditor = role === 'editor';
+  document.getElementById('editor-bio-row').style.display = isEditor ? '' : 'none';
+  document.getElementById('editor-price-row').style.display = isEditor ? '' : 'none';
+}
+
+// Track selected specialties
+window._selectedSpecs = [];
+
+// Track job category/type on create form
+window._jobCat = null;
+window._jobTypes = [];
+function toggleJobCat(cat) {
+  const prev = window._jobCat;
+  window._jobCat = (prev === cat) ? null : cat;
+  ['reels','youtube','clips'].forEach(c => {
+    const b = document.getElementById('jcat-'+c);
+    if (b) b.classList.toggle('active', window._jobCat === c);
+  });
+}
+function toggleJobType(type) {
+  if (!window._jobTypes) window._jobTypes = [];
+  const idx = window._jobTypes.indexOf(type);
+  const btn = document.getElementById('jtype-'+type);
+  if (idx === -1) { window._jobTypes.push(type); if(btn) btn.classList.add('active'); }
+  else { window._jobTypes.splice(idx,1); if(btn) btn.classList.remove('active'); }
+}
+function toggleSpec(spec) {
+  const btn = document.getElementById('spec-' + spec);
+  const idx = window._selectedSpecs.indexOf(spec);
+  if (idx === -1) {
+    window._selectedSpecs.push(spec);
+    btn.classList.add('active');
+  } else {
+    window._selectedSpecs.splice(idx, 1);
+    btn.classList.remove('active');
+  }
+}
+
+function goToSetup() {
+  if (!selectedRole) return;
+  state.role = selectedRole;
+  window._selectedSpecs = [];
+  ['reels','youtube','clips'].forEach(s => {
+    const b = document.getElementById('spec-' + s);
+    if (b) b.classList.remove('active');
+  });
+
+  // Pre-fill name and username from Telegram
+  const tgFirst = state.tgUser?.first_name || '';
+  const tgUsername = state.tgUser?.username || '';
+  document.getElementById('setup-name').value = tgFirst;
+  document.getElementById('setup-tg-username').value = tgUsername ? '@' + tgUsername : '';
+  if (document.getElementById('setup-experience')) document.getElementById('setup-experience').value = '';
+
+  showScreen('screen-setup');
+}
+
+// Simple hash for password (not cryptographic — just obfuscation for anon key app)
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0;
+  }
+  return 'h' + Math.abs(hash).toString(36) + str.length.toString(36);
+}
+
+async function completeSetup() {
+  const name = document.getElementById('setup-name').value.trim();
+  let tgUsernameRaw = (document.getElementById('setup-tg-username').value || '').trim().replace(/^@/, '');
+  const pass1 = (document.getElementById('setup-password')?.value || '').trim();
+  const pass2 = (document.getElementById('setup-password2')?.value || '').trim();
+
+  if (!name) { showToast('⚠️ Введите имя'); return; }
+  if (!tgUsernameRaw) { showToast('⚠️ Введите Telegram username'); return; }
+  if (!pass1) { showToast('⚠️ Придумайте пароль'); return; }
+  if (pass1.length < 4) { showToast('⚠️ Пароль минимум 4 символа'); return; }
+  if (pass1 !== pass2) { showToast('⚠️ Пароли не совпадают'); return; }
+  const passwordHash = simpleHash(pass1);
+
+  const btn = document.getElementById('setup-btn');
+  btn.disabled = true;
+  btn.textContent = 'Сохраняем...';
+
+  // Map role: 'editor' → 'monter', 'client' → 'client'
+  const dbRole = state.role === 'editor' ? 'monter' : 'client';
+
+  try {
+    // Re-fetch user if id missing (fallback object from failed insert)
+    if (!state.user?.id) {
+      try {
+        const fresh = await sb.select('users', `telegram_id=eq.${state.tgUser.id}&limit=1`);
+        if (fresh?.[0]) state.user = fresh[0];
+      } catch(e) {}
+    }
+
+    const experience = (document.getElementById('setup-experience')?.value || '').trim();
+    const selectedSpecs = window._selectedSpecs || [];
+    const updatePayload = {
+      role: dbRole,
+      username: name,
+      tg_username: tgUsernameRaw,
+      password_hash: passwordHash,
+    };
+    if (experience) updatePayload.experience = experience;
+    if (selectedSpecs.length > 0) updatePayload.specialty = selectedSpecs.join(',');
+    await sb.update('users', updatePayload, `telegram_id=eq.${state.tgUser.id}`);
+    // Re-fetch to get full updated user object
+    const updatedUsers = await sb.select('users', `telegram_id=eq.${state.tgUser.id}&limit=1`);
+    if (updatedUsers?.[0]) state.user = updatedUsers[0];
+    state.user = state.user || {};
+    state.user.role = dbRole;
+    state.user.username = name;
+    state.user.tg_username = tgUsernameRaw;
+    state.role = dbRole;
+
+    document.getElementById('dot-s2').classList.remove('active');
+    document.getElementById('dot-s3').classList.add('active');
+
+    showToast('✅ Профиль создан!', 'success');
+
+    const navListLabel = document.getElementById('nav-list-label');
+    navListLabel.textContent = state.role === 'client' ? 'Заказы' : 'Отклики';
+
+    updateHeaderUI();
+
+    setTimeout(async () => {
+      await enterDashboard();
+    }, 600);
+  } catch(e) {
+    console.error(e);
+    showToast('❌ Ошибка сохранения');
+    btn.disabled = false;
+    btn.textContent = 'Готово — открыть приложение 🚀';
+  }
+}
+
+async function switchRole(newRole) {
+  if (state.role === newRole) {
+    showToast('Вы уже в этом режиме');
+    return;
+  }
+  try {
+    await sb.update('users', { role: newRole }, `telegram_id=eq.${state.tgUser.id}`);
+    state.user.role = newRole;
+    state.role = newRole;
+    state._montersCache = null;
+    state._ordersCache = null;
+    const navListLabel = document.getElementById('nav-list-label');
+    if (navListLabel) navListLabel.textContent = newRole === 'client' ? 'Заказы' : 'Отклики';
+    showToast(newRole === 'client' ? '🎬 Режим заказчика' : '✂️ Режим монтажёра', 'success');
+    await enterDashboard();
+  } catch(e) {
+    showToast('❌ ' + sbError(e).slice(0, 80));
+  }
+}
+
+async function logout() {
+  try {
+    await sb.update('users', { role: null }, `telegram_id=eq.${state.tgUser.id}`);
+  } catch(e) {}
+
+  // Full state reset
+  state.role = null;
+  state.user = null;
+  state._montersCache = null;
+  state.currentOrderId = null;
+  selectedRole = null;
+  window._selectedSpecs = [];
+
+  document.getElementById('role-client').classList.remove('selected');
+  document.getElementById('role-editor').classList.remove('selected');
+  document.getElementById('check-client').style.display = 'none';
+  document.getElementById('check-editor').style.display = 'none';
+  document.getElementById('continue-btn-wrap').style.display = 'none';
+  showScreen('screen-onboarding');
+}
+
+// ============ TELEGRAM UTILS ============
+function openTelegramUser(username) {
+  if (!username) { showToast('❌ Username не указан'); return; }
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.openTelegramLink(`https://t.me/${username}`);
+  } else {
+    window.open(`https://t.me/${username}`, '_blank');
+  }
+}
+
+// ============ HELPERS ============
+function getStatusTag(status) {
+  const map = {
+    open: '<div class="tag tag-green" style="font-size:10px;">Открыт</div>',
+    in_progress: '<div class="tag tag-blue" style="font-size:10px;">В работе</div>',
+    done: '<div class="tag tag-gray" style="font-size:10px;">Завершён</div>',
+    cancelled: '<div class="tag tag-orange" style="font-size:10px;">Отменён</div>',
+  };
+  return map[status] || `<div class="tag tag-gray" style="font-size:10px;">${status}</div>`;
+}
+
+function getStatusLabel(status) {
+  const map = { open: 'Открыт', in_progress: 'В работе', done: 'Завершён', cancelled: 'Отменён' };
+  return map[status] || status;
+}
+
+function declension(n, forms) {
+  const abs = Math.abs(n) % 100;
+  const n1 = abs % 10;
+  if (abs > 10 && abs < 20) return forms[2];
+  if (n1 > 1 && n1 < 5) return forms[1];
+  if (n1 === 1) return forms[0];
+  return forms[2];
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function filterChip(el) {
+  el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ============ TOAST ============
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ============ MODAL ============
+function openModal(html) {
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(e) {
+  if (e.target === document.getElementById('modal')) {
+    document.getElementById('modal').classList.remove('show');
+  }
+}
+
+// ============ INIT ============
+document.getElementById('editor-bio-row').style.display = 'none';
+document.getElementById('editor-price-row').style.display = 'none';
+
+// Start app
+initApp();
+</script>
+</body>
+</html>
