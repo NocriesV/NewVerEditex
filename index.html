@@ -555,7 +555,7 @@
     <div style="color:var(--muted2);font-size:13px;" id="load-status">Инициализация...</div>
   </div>
 
-  <!-- =================== ONBOARDING: WELCOME =================== -->
+  <!-- =================== ONBOARDING: ВЫБОР РОЛИ =================== -->
   <div class="screen" id="screen-onboarding">
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 28px;">
       <div style="width:100%;max-width:340px;text-align:center;">
@@ -566,124 +566,53 @@
           </svg>
         </div>
         <h1 class="display-title fade-up" style="font-size:28px;line-height:1.15;margin-bottom:10px;">Editex</h1>
-        <p class="fade-up fade-up-1" style="color:var(--muted2);font-size:14px;line-height:1.6;margin-bottom:40px;">
+        <p class="fade-up fade-up-1" style="color:var(--muted2);font-size:14px;line-height:1.6;margin-bottom:32px;">
           Биржа видеомонтажёров в Telegram
         </p>
-        <div style="display:flex;flex-direction:column;gap:12px;width:100%;" class="fade-up fade-up-2">
-          <button class="btn btn-primary" onclick="showScreen('screen-register')">
-            Зарегистрироваться
-          </button>
-          <button class="btn btn-secondary" onclick="showScreen('screen-login')">
-            Войти (уже есть аккаунт)
-          </button>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Кто вы?</p>
+        <div class="role-cards fade-up fade-up-2">
+          <div class="role-card" id="role-client" onclick="selectRole('client')">
+            <div class="role-emoji">🎬</div>
+            <div class="role-info"><h3>Заказчик</h3><p>Публикую задания и ищу монтажёров</p></div>
+            <svg id="check-client" width="20" height="20" viewBox="0 0 20 20" fill="none" style="display:none;flex-shrink:0;">
+              <circle cx="10" cy="10" r="10" fill="#e8ff47"/>
+              <path d="M6 10L9 13L14 7" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="role-card" id="role-editor" onclick="selectRole('editor')">
+            <div class="role-emoji">✂️</div>
+            <div class="role-info"><h3>Монтажёр</h3><p>Беру проекты и зарабатываю на своём таланте</p></div>
+            <svg id="check-editor" width="20" height="20" viewBox="0 0 20 20" fill="none" style="display:none;flex-shrink:0;">
+              <circle cx="10" cy="10" r="10" fill="#e8ff47"/>
+              <path d="M6 10L9 13L14 7" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div id="continue-btn-wrap" style="width:100%;display:none;margin-top:4px;">
+          <button class="btn btn-primary" onclick="goToSetup()">Далее →</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- =================== LOGIN =================== -->
-  <div class="screen" id="screen-login">
-    <div class="page-header">
-      <div class="back-btn" onclick="showScreen('screen-onboarding')">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
-      </div>
-      <span class="display-title" style="font-size:15px;">Вход</span>
-    </div>
-    <div style="padding:24px 20px;">
-      <div class="form-row">
-        <div class="input-group">
-          <label class="input-label">Telegram @username *</label>
-          <input class="input" placeholder="@username" id="login-username" autocomplete="username">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="input-group">
-          <label class="input-label">Пароль *</label>
-          <input class="input" type="password" placeholder="Ваш пароль" id="login-password" autocomplete="current-password">
-        </div>
-      </div>
-      <button class="btn btn-primary" onclick="doLogin()" id="login-btn" style="margin-top:8px;">
-        Войти →
-      </button>
-      <div style="text-align:center;margin-top:16px;">
-        <span style="font-size:13px;color:var(--muted2);">Нет аккаунта? </span>
-        <span style="font-size:13px;color:var(--accent);cursor:pointer;font-weight:600;" onclick="showScreen('screen-register')">Зарегистрироваться</span>
-      </div>
-    </div>
-  </div>
 
-  <!-- =================== REGISTER: ROLE =================== -->
-  <div class="screen" id="screen-register">
-    <div class="page-header">
-      <div class="back-btn" onclick="showScreen('screen-onboarding')">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
-      </div>
-      <span class="display-title" style="font-size:15px;">Регистрация</span>
-    </div>
-    <div style="padding:24px 28px;">
-      <div class="progress-dots" style="justify-content:flex-start;margin-bottom:20px;">
-        <div class="dot active"></div><div class="dot"></div>
-      </div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Кто вы?</p>
-      <div class="role-cards">
-        <div class="role-card" id="role-client" onclick="selectRole('client')">
-          <div class="role-emoji">🎬</div>
-          <div class="role-info"><h3>Заказчик</h3><p>Публикую задания и ищу монтажёров</p></div>
-          <svg id="check-client" width="20" height="20" viewBox="0 0 20 20" fill="none" style="display:none;flex-shrink:0;">
-            <circle cx="10" cy="10" r="10" fill="#e8ff47"/>
-            <path d="M6 10L9 13L14 7" stroke="#000" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="role-card" id="role-editor" onclick="selectRole('editor')">
-          <div class="role-emoji">✂️</div>
-          <div class="role-info"><h3>Монтажёр</h3><p>Беру проекты и зарабатываю на своём таланте</p></div>
-          <svg id="check-editor" width="20" height="20" viewBox="0 0 20 20" fill="none" style="display:none;flex-shrink:0;">
-            <circle cx="10" cy="10" r="10" fill="#e8ff47"/>
-            <path d="M6 10L9 13L14 7" stroke="#000" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-      </div>
-      <div id="continue-btn-wrap" style="width:100%;display:none;margin-top:4px;">
-        <button class="btn btn-primary" onclick="goToSetup()">Далее →</button>
-      </div>
-    </div>
-  </div>
+
+
 
   <!-- =================== SETUP PROFILE =================== -->
   <div class="screen" id="screen-setup">
     <div class="page-header">
-      <div class="back-btn" onclick="showScreen('screen-register')">
+      <div class="back-btn" onclick="showScreen('screen-onboarding')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
       </div>
       <span class="display-title" style="font-size:15px;">Настройка профиля</span>
     </div>
 
     <div style="padding:24px 20px;">
-      <div class="progress-dots" style="justify-content:flex-start;margin-bottom:24px;">
-        <div class="dot" id="dot-s1"></div>
-        <div class="dot active" id="dot-s2"></div>
-        <div class="dot" id="dot-s3"></div>
-      </div>
-
-      <div class="form-row-2">
+      <div class="form-row">
         <div class="input-group">
           <label class="input-label">Ваше имя *</label>
           <input class="input" placeholder="Иван Петров" id="setup-name">
-        </div>
-        <div class="input-group">
-          <label class="input-label">Telegram @username *</label>
-          <input class="input" placeholder="@username" id="setup-tg-username" autocomplete="username">
-        </div>
-      </div>
-
-      <div class="form-row-2">
-        <div class="input-group">
-          <label class="input-label">Пароль *</label>
-          <input class="input" type="password" placeholder="Придумайте пароль" id="setup-password" autocomplete="new-password">
-        </div>
-        <div class="input-group">
-          <label class="input-label">Повторите пароль *</label>
-          <input class="input" type="password" placeholder="Повторите пароль" id="setup-password2" autocomplete="new-password">
         </div>
       </div>
 
@@ -1050,7 +979,22 @@ const sb = {
   },
 
   async update(table, data, match) {
-    return this.query(`${table}?${match}`, { method: 'PATCH', body: data });
+    const url = `${SUPABASE_URL}/rest/v1/${table}?${match}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    return null;
   },
 
   async upsert(table, data, onConflict) {
@@ -1209,62 +1153,9 @@ async function loadOrCreateUser() {
   showScreen('screen-onboarding');
 }
 
+// Вход полностью автоматический по Telegram ID — эта функция не нужна
 async function doLogin() {
-  const btn = document.getElementById('login-btn');
-  const usernameRaw = (document.getElementById('login-username').value || '').trim().replace(/^@/, '').toLowerCase();
-  const passRaw = (document.getElementById('login-password')?.value || '').trim();
-
-  if (!usernameRaw) { showToast('⚠️ Введите username'); return; }
-  if (!passRaw) { showToast('⚠️ Введите пароль'); return; }
-
-  btn.disabled = true;
-  btn.textContent = 'Входим...';
-
-  const passwordHash = simpleHash(passRaw);
-
-  try {
-    // Ищем по точному tg_username (lowercase)
-    let byName = await sb.select('users', `tg_username=eq.${usernameRaw}&limit=10`);
-    // Если не нашли — пробуем с заглавной
-    if (!byName || byName.length === 0) {
-      byName = await sb.select('users', `tg_username=eq.${usernameRaw.charAt(0).toUpperCase() + usernameRaw.slice(1)}&limit=10`);
-    }
-
-    if (!byName || byName.length === 0) {
-      showToast('❌ Аккаунт не найден — зарегистрируйтесь');
-      btn.disabled = false;
-      btn.textContent = 'Войти →';
-      return;
-    }
-
-    // Ищем совпадение по паролю среди найденных
-    const user = byName.find(u => u.password_hash === passwordHash);
-
-    if (!user) {
-      showToast('❌ Неверный пароль');
-      btn.disabled = false;
-      btn.textContent = 'Войти →';
-      return;
-    }
-
-    if (!user.role) {
-      showToast('❌ Аккаунт не завершён — зарегистрируйтесь');
-      btn.disabled = false;
-      btn.textContent = 'Войти →';
-      return;
-    }
-
-    state.user = user;
-    state.tgUser = state.tgUser || { id: user.telegram_id };
-    state.role = user.role;
-    showToast('✅ Добро пожаловать, ' + (user.username || '') + '!', 'success');
-    setTimeout(() => enterDashboard(), 500);
-  } catch(e) {
-    console.error('doLogin error:', e);
-    showToast('❌ Ошибка: ' + sbError(e).slice(0, 60));
-    btn.disabled = false;
-    btn.textContent = 'Войти →';
-  }
+  showToast('Вход происходит автоматически по Telegram ID');
 }
 
 async function enterDashboard() {
@@ -1803,7 +1694,11 @@ async function acceptProposal(proposalId, orderId) {
     await sb.update('orders', { status: 'in_progress', monter_id: monterId }, `id=eq.${orderId}`);
     state._ordersCache = null;
     showToast('✅ Монтажёр выбран!', 'success');
+    // Обновляем список откликов и сразу перезагружаем мои заказы
     await loadProposals(orderId);
+    // Обновляем заголовок статуса в детали заказа
+    const statusEls = document.querySelectorAll('#job-detail-content .tag');
+    if (statusEls[0]) statusEls[0].textContent = 'В работе';
   } catch(e) {
     console.error('acceptProposal error:', e);
     showToast('❌ ' + sbError(e).slice(0, 100));
@@ -1830,6 +1725,21 @@ async function markOrderDone(orderId) {
 }
 
 async function cancelOrder(orderId) {
+  // Показываем подтверждение через modal
+  openModal(`
+    <div class="display-title" style="font-size:16px;margin-bottom:12px;">Отменить заказ?</div>
+    <p style="font-size:13px;color:var(--muted2);line-height:1.5;margin-bottom:20px;">
+      Заказ будет отменён. Все отклики сохранятся, но монтажёры больше не смогут откликнуться.
+    </p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeModal(event);document.getElementById('modal').classList.remove('show')">Нет</button>
+      <button class="btn btn-danger" style="flex:1;" onclick="doCancelOrder('${orderId}')">Да, отменить</button>
+    </div>
+  `);
+}
+
+async function doCancelOrder(orderId) {
+  document.getElementById('modal').classList.remove('show');
   try {
     await sb.update('orders', { status: 'cancelled' }, `id=eq.${orderId}`);
     state._ordersCache = null;
@@ -2581,39 +2491,21 @@ function goToSetup() {
     if (b) b.classList.remove('active');
   });
 
-  // Pre-fill name and username from Telegram
+  // Подставляем имя из Telegram
   const tgFirst = state.tgUser?.first_name || '';
-  const tgUsername = state.tgUser?.username || '';
   document.getElementById('setup-name').value = tgFirst;
-  document.getElementById('setup-tg-username').value = tgUsername ? '@' + tgUsername : '';
-  if (document.getElementById('setup-experience')) document.getElementById('setup-experience').value = '';
+  const expEl = document.getElementById('setup-experience');
+  if (expEl) expEl.value = '';
 
   showScreen('screen-setup');
 }
 
-// Simple hash for password (not cryptographic — just obfuscation for anon key app)
-function simpleHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const ch = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + ch;
-    hash |= 0;
-  }
-  return 'h' + Math.abs(hash).toString(36) + str.length.toString(36);
-}
-
 async function completeSetup() {
   const name = document.getElementById('setup-name').value.trim();
-  let tgUsernameRaw = (document.getElementById('setup-tg-username').value || '').trim().replace(/^@/, '');
-  const pass1 = (document.getElementById('setup-password')?.value || '').trim();
-  const pass2 = (document.getElementById('setup-password2')?.value || '').trim();
-
   if (!name) { showToast('⚠️ Введите имя'); return; }
-  if (!tgUsernameRaw) { showToast('⚠️ Введите Telegram username'); return; }
-  if (!pass1) { showToast('⚠️ Придумайте пароль'); return; }
-  if (pass1.length < 4) { showToast('⚠️ Пароль минимум 4 символа'); return; }
-  if (pass1 !== pass2) { showToast('⚠️ Пароли не совпадают'); return; }
-  const passwordHash = simpleHash(pass1);
+
+  // tg_username берём из TG initData если есть
+  const tgUsernameRaw = state.tgUser?.username || '';
 
   const btn = document.getElementById('setup-btn');
   btn.disabled = true;
@@ -2644,19 +2536,8 @@ async function completeSetup() {
       }
     } catch(e) {}
 
-    // Проверяем что этот telegram_id ещё не зарегистрирован с ролью
-    try {
-      const alreadyReg = await sb.select('users',
-        `telegram_id=eq.${state.tgUser.id}&role=not.is.null&limit=1`
-      );
-      if (alreadyReg && alreadyReg.length > 0 && alreadyReg[0].id !== state.user?.id) {
-        showToast('⚠️ Этот Telegram аккаунт уже зарегистрирован. Используйте вход.');
-        btn.disabled = false;
-        btn.textContent = 'Готово — открыть приложение 🚀';
-        showScreen('screen-login');
-        return;
-      }
-    } catch(e) {}
+    // Если TG ID уже зарегистрирован — просто входим
+    // (пользователь мог нажать "Далее" повторно)
 
     // БАГ-ФИХ: проверяем — если у юзера уже есть role, значит он уже зарегистрирован
     if (state.user?.role) {
@@ -2686,8 +2567,7 @@ async function completeSetup() {
     const updatePayload = {
       role: dbRole,
       username: name,
-      tg_username: tgUsernameRaw,
-      password_hash: passwordHash,
+      tg_username: tgUsernameRaw || null,
     };
     if (experience) updatePayload.experience = experience;
     if (selectedSpecs.length > 0) updatePayload.specialty = selectedSpecs.join(',');
@@ -2755,11 +2635,17 @@ async function logout() {
   selectedRole = null;
   window._selectedSpecs = [];
 
-  document.getElementById('role-client').classList.remove('selected');
-  document.getElementById('role-editor').classList.remove('selected');
-  document.getElementById('check-client').style.display = 'none';
-  document.getElementById('check-editor').style.display = 'none';
-  document.getElementById('continue-btn-wrap').style.display = 'none';
+  // Сбрасываем UI выбора роли
+  const rc = document.getElementById('role-client');
+  const re = document.getElementById('role-editor');
+  const cc = document.getElementById('check-client');
+  const ce = document.getElementById('check-editor');
+  const cb = document.getElementById('continue-btn-wrap');
+  if (rc) rc.classList.remove('selected');
+  if (re) re.classList.remove('selected');
+  if (cc) cc.style.display = 'none';
+  if (ce) ce.style.display = 'none';
+  if (cb) cb.style.display = 'none';
   showScreen('screen-onboarding');
 }
 
