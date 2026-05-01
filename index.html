@@ -1158,16 +1158,18 @@ async function loadOrCreateUser() {
     state.user = users[0];
     state.role = state.user.role || null;
     if (state.role) {
+      // Аккаунт уже зарегистрирован — сразу в дашборд
       await enterDashboard();
     } else {
+      // Аккаунт есть, но регистрация не завершена — на онбординг
       showScreen('screen-onboarding');
     }
     return;
   }
 
-  // 2. New user — insert then re-fetch (handles Prefer header issues)
+  // 2. Новый юзер — вставляем запись
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    const insertResp = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -1181,6 +1183,12 @@ async function loadOrCreateUser() {
         role: null
       })
     });
+    // 409 = conflict (уже существует) — просто игнорируем
+    if (!insertResp.ok && insertResp.status !== 409) {
+      const errText = await insertResp.text();
+      showLoadError('Ошибка создания пользователя ' + insertResp.status + ':<br>' + errText.slice(0,150));
+      return;
+    }
   } catch(e) {
     showLoadError('Ошибка создания пользователя:<br>' + e.message);
     return;
@@ -1192,7 +1200,6 @@ async function loadOrCreateUser() {
     if (fresh && fresh.length > 0) {
       state.user = fresh[0];
     } else {
-      // Fallback: create minimal local object so app can proceed
       state.user = { telegram_id: telegramId, id: null, role: null };
     }
   } catch(e) {
@@ -1204,7 +1211,7 @@ async function loadOrCreateUser() {
 
 async function doLogin() {
   const btn = document.getElementById('login-btn');
-  const usernameRaw = (document.getElementById('login-username').value || '').trim().replace(/^@/, '');
+  const usernameRaw = (document.getElementById('login-username').value || '').trim().replace(/^@/, '').toLowerCase();
   const passRaw = (document.getElementById('login-password')?.value || '').trim();
 
   if (!usernameRaw) { showToast('⚠️ Введите username'); return; }
@@ -1216,25 +1223,30 @@ async function doLogin() {
   const passwordHash = simpleHash(passRaw);
 
   try {
-    // Search by tg_username + password_hash
-    let users = await sb.select('users',
-      `tg_username=eq.${encodeURIComponent(usernameRaw)}&password_hash=eq.${encodeURIComponent(passwordHash)}&limit=1`
-    );
+    // Ищем по точному tg_username (lowercase)
+    let byName = await sb.select('users', `tg_username=eq.${usernameRaw}&limit=10`);
+    // Если не нашли — пробуем с заглавной
+    if (!byName || byName.length === 0) {
+      byName = await sb.select('users', `tg_username=eq.${usernameRaw.charAt(0).toUpperCase() + usernameRaw.slice(1)}&limit=10`);
+    }
 
-    if (!users || users.length === 0) {
-      // Try without password to give better error
-      const byName = await sb.select('users', `tg_username=eq.${encodeURIComponent(usernameRaw)}&limit=1`);
-      if (byName && byName.length > 0) {
-        showToast('❌ Неверный пароль');
-      } else {
-        showToast('❌ Аккаунт не найден — зарегистрируйтесь');
-      }
+    if (!byName || byName.length === 0) {
+      showToast('❌ Аккаунт не найден — зарегистрируйтесь');
       btn.disabled = false;
       btn.textContent = 'Войти →';
       return;
     }
 
-    const user = users[0];
+    // Ищем совпадение по паролю среди найденных
+    const user = byName.find(u => u.password_hash === passwordHash);
+
+    if (!user) {
+      showToast('❌ Неверный пароль');
+      btn.disabled = false;
+      btn.textContent = 'Войти →';
+      return;
+    }
+
     if (!user.role) {
       showToast('❌ Аккаунт не завершён — зарегистрируйтесь');
       btn.disabled = false;
@@ -1475,7 +1487,28 @@ async function renderMonterProfileById(user, portfolio = []) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="#26b6ff"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.9 8.2l-2 9.4c-.1.6-.5.8-.9.5l-2.5-1.8-1.2 1.1c-.1.1-.3.2-.6.2l.2-2.8 5.2-4.7c.2-.2 0-.3-.3-.1L7.1 14.4l-2.5-.8c-.5-.2-.5-.5.1-.8l11.5-4.4c.5-.2.9.1.7.8z"/></svg>
         Написать в Telegram
       </button>` : '<div style="text-align:center;font-size:12px;color:var(--muted);">Контакт не указан</div>'}
-    </div>`;
+    <div id="rate-monter-btn-wrap" style="margin-top:10px;"></div>`;
+
+  // Проверяем: есть ли совместный завершённый заказ — тогда показываем кнопку оценки
+  if (state.role === 'client' && state.user?.id) {
+    try {
+      const doneOrders = await sb.select('orders',
+        `client_id=eq.${state.user.id}&monter_id=eq.${user.id}&status=eq.done&limit=1`
+      );
+      if (doneOrders && doneOrders.length > 0) {
+        const orderId = doneOrders[0].id;
+        // Проверяем что ещё не оценивали
+        const alreadyReviewed = await sb.select('reviews',
+          `reviewer_id=eq.${state.user.id}&reviewee_id=eq.${user.id}&order_id=eq.${orderId}&limit=1`
+        );
+        const wrap = document.getElementById('rate-monter-btn-wrap');
+        if (wrap && (!alreadyReviewed || alreadyReviewed.length === 0)) {
+          wrap.innerHTML = `<button class="btn btn-ghost" onclick="showReviewModal('${user.id}','${orderId}','monter')">⭐ Оценить монтажёра</button>`;
+        }
+      }
+    } catch(e) {}
+  }
+
 }
 
 // ============ LOAD ORDERS (for editor dashboard) ============
@@ -1625,10 +1658,14 @@ async function openJobDetail(orderId) {
       </div>`;
 
     // Show appropriate section
-    if (isClientRole || isMyOrder) {
+    // Клиент видит отклики только если это ЕГО заказ И он в роли клиента
+    // Монтажёр не видит отклики других — только свой статус
+    const canSeeProposals = isClientRole && isMyOrder;
+
+    if (canSeeProposals) {
       document.getElementById('client-responses-section').style.display = 'block';
       await loadProposals(orderId);
-    } else {
+    } else if (!isClientRole) {
       // Check if monter already submitted a proposal
       const myProposals = await sb.select('proposals', `order_id=eq.${orderId}&monter_id=eq.${state.user.id}&limit=1`);
       if (myProposals && myProposals.length > 0) {
@@ -1732,7 +1769,7 @@ async function loadProposals(orderId) {
           </div>
           ${p.comment ? `<div style="font-size:13px;color:var(--muted2);line-height:1.5;margin:8px 0 10px;">${escHtml(p.comment)}</div>` : ''}
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            ${p.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptProposal('${p.id}','${orderId}')">Выбрать</button>` : ''}
+            ${p.status === 'pending' && state.role === 'client' && order.client_id === state.user?.id ? `<button class="btn btn-primary btn-sm" onclick="acceptProposal('${p.id}','${orderId}')">Выбрать</button>` : ''}
             ${tgHandle ? `<button class="btn btn-secondary btn-sm" onclick="openTelegramUser('${tgHandle}')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="#26b6ff"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.9 8.2l-2 9.4c-.1.6-.5.8-.9.5l-2.5-1.8-1.2 1.1c-.1.1-.3.2-.6.2l.2-2.8 5.2-4.7c.2-.2 0-.3-.3-.1L7.1 14.4l-2.5-.8c-.5-.2-.5-.5.1-.8l11.5-4.4c.5-.2.9.1.7.8z"/></svg>
               Написать
@@ -1750,7 +1787,16 @@ async function loadProposals(orderId) {
 // ============ ACCEPT PROPOSAL ============
 async function acceptProposal(proposalId, orderId) {
   try {
-    // Get monter_id from proposal
+    // Проверяем что текущий юзер = клиент заказа и роль client
+    if (state.role !== 'client') {
+      showToast('⛔ Только заказчик может выбирать монтажёра');
+      return;
+    }
+    const orderCheck = await sb.select('orders', `id=eq.${orderId}&limit=1`);
+    if (!orderCheck?.[0] || orderCheck[0].client_id !== state.user?.id) {
+      showToast('⛔ Это не ваш заказ');
+      return;
+    }
     const props = await sb.select('proposals', `id=eq.${proposalId}&limit=1`);
     const monterId = props?.[0]?.monter_id || null;
     await sb.update('proposals', { status: 'accepted' }, `id=eq.${proposalId}`);
@@ -2375,6 +2421,14 @@ async function submitResponse() {
     showToast('⚠️ Данные не загружены, перезайдите');
     return;
   }
+  // Нельзя откликаться на свой же заказ
+  try {
+    const myOrder = await sb.select('orders', `id=eq.${state.currentOrderId}&client_id=eq.${state.user.id}&limit=1`);
+    if (myOrder && myOrder.length > 0) {
+      showToast('⛔ Нельзя откликнуться на свой заказ');
+      return;
+    }
+  } catch(e) {}
 
   const btn = document.getElementById('response-btn');
   btn.disabled = true;
@@ -2569,13 +2623,63 @@ async function completeSetup() {
   const dbRole = state.role === 'editor' ? 'monter' : 'client';
 
   try {
-    // Re-fetch user if id missing (fallback object from failed insert)
+    // Re-fetch user если id отсутствует
     if (!state.user?.id) {
       try {
         const fresh = await sb.select('users', `telegram_id=eq.${state.tgUser.id}&limit=1`);
         if (fresh?.[0]) state.user = fresh[0];
       } catch(e) {}
     }
+
+    // Проверяем что этот tg_username не занят другим пользователем
+    try {
+      const taken = await sb.select('users',
+        `tg_username=eq.${tgUsernameRaw}&id=neq.${state.user?.id || '00000000-0000-0000-0000-000000000000'}&limit=1`
+      );
+      if (taken && taken.length > 0) {
+        showToast('⚠️ Этот @username уже занят другим пользователем');
+        btn.disabled = false;
+        btn.textContent = 'Готово — открыть приложение 🚀';
+        return;
+      }
+    } catch(e) {}
+
+    // Проверяем что этот telegram_id ещё не зарегистрирован с ролью
+    try {
+      const alreadyReg = await sb.select('users',
+        `telegram_id=eq.${state.tgUser.id}&role=not.is.null&limit=1`
+      );
+      if (alreadyReg && alreadyReg.length > 0 && alreadyReg[0].id !== state.user?.id) {
+        showToast('⚠️ Этот Telegram аккаунт уже зарегистрирован. Используйте вход.');
+        btn.disabled = false;
+        btn.textContent = 'Готово — открыть приложение 🚀';
+        showScreen('screen-login');
+        return;
+      }
+    } catch(e) {}
+
+    // БАГ-ФИХ: проверяем — если у юзера уже есть role, значит он уже зарегистрирован
+    if (state.user?.role) {
+      showToast('⚠️ Аккаунт уже зарегистрирован! Войдите через форму входа.');
+      btn.disabled = false;
+      btn.textContent = 'Готово — открыть приложение 🚀';
+      setTimeout(() => showScreen('screen-login'), 1200);
+      return;
+    }
+
+    // Проверяем что tg_username не занят другим юзером
+    try {
+      const existingByUsername = await sb.select('users', `tg_username=ilike.${tgUsernameRaw}&limit=1`);
+      if (existingByUsername && existingByUsername.length > 0) {
+        const other = existingByUsername[0];
+        if (other.telegram_id !== String(state.tgUser.id) && other.role) {
+          showToast('⚠️ Этот username уже занят другим аккаунтом');
+          btn.disabled = false;
+          btn.textContent = 'Готово — открыть приложение 🚀';
+          return;
+        }
+      }
+    } catch(e) {}
 
     const experience = (document.getElementById('setup-experience')?.value || '').trim();
     const selectedSpecs = window._selectedSpecs || [];
