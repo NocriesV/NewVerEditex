@@ -569,6 +569,9 @@
         <p class="fade-up fade-up-1" style="color:var(--muted2);font-size:14px;line-height:1.6;margin-bottom:32px;">
           Биржа видеомонтажёров в Telegram
         </p>
+        <div id="auto-login-hint" style="display:none;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#4ade80;">
+          Аккаунт найден — выбери роль для входа
+        </div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:16px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Кто вы?</p>
         <div class="role-cards fade-up fade-up-2">
           <div class="role-card" id="role-client" onclick="selectRole('client')">
@@ -1105,8 +1108,10 @@ async function loadOrCreateUser() {
       // Аккаунт уже зарегистрирован — сразу в дашборд
       await enterDashboard();
     } else {
-      // Аккаунт есть, но регистрация не завершена — на онбординг
+      // Аккаунт есть, но роль не выбрана — на онбординг с подсказкой
       showScreen('screen-onboarding');
+      const hint = document.getElementById('auto-login-hint');
+      if (hint) hint.style.display = 'block';
     }
     return;
   }
@@ -1153,10 +1158,7 @@ async function loadOrCreateUser() {
   showScreen('screen-onboarding');
 }
 
-// Вход полностью автоматический по Telegram ID — эта функция не нужна
-async function doLogin() {
-  showToast('Вход происходит автоматически по Telegram ID');
-}
+
 
 async function enterDashboard() {
   // Clear caches on fresh login
@@ -2539,12 +2541,13 @@ async function completeSetup() {
     // Если TG ID уже зарегистрирован — просто входим
     // (пользователь мог нажать "Далее" повторно)
 
-    // БАГ-ФИХ: проверяем — если у юзера уже есть role, значит он уже зарегистрирован
+    // Если у юзера уже есть role — он уже зарегистрирован, просто входим
     if (state.user?.role) {
-      showToast('⚠️ Аккаунт уже зарегистрирован! Войдите через форму входа.');
+      state.role = state.user.role;
+      showToast('✅ Добро пожаловать!', 'success');
       btn.disabled = false;
       btn.textContent = 'Готово — открыть приложение 🚀';
-      setTimeout(() => showScreen('screen-login'), 1200);
+      setTimeout(() => enterDashboard(), 500);
       return;
     }
 
