@@ -1133,10 +1133,11 @@ async function loadOrCreateUser() {
         'Prefer': 'return=minimal'
       },
       body: JSON.stringify({
-        telegram_id: telegramId,
-        username: state.tgUser.username || state.tgUser.first_name || '',
-        role: null
-      })
+  telegram_id: telegramId,
+  username: state.tgUser.username || state.tgUser.first_name || '',
+  tg_username: state.tgUser.username || null,
+  role: null
+})
     });
     // 409 = conflict (уже существует) — просто игнорируем
     if (!insertResp.ok && insertResp.status !== 409) {
