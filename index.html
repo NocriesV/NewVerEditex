@@ -676,6 +676,9 @@
           <div class="chip" data-cat="reels" onclick="filterMonters(this)">📱 Reels/Shorts</div>
           <div class="chip" data-cat="youtube" onclick="filterMonters(this)">🎬 YouTube</div>
           <div class="chip" data-cat="clips" onclick="filterMonters(this)">🎵 Клипы</div>
+          <div class="chip" data-sort="rating" onclick="sortMonters(this)">⭐ По рейтингу</div>
+          <div class="chip" data-sort="price_asc" onclick="sortMonters(this)">💰 Дешевле</div>
+          <div class="chip" data-sort="price_desc" onclick="sortMonters(this)">💎 Дороже</div>
         </div>
       </div>
 
@@ -709,6 +712,9 @@
           <div class="chip" data-filter="urgent" onclick="filterOrders(this)">📦 Срочные</div>
           <div class="chip" data-filter="highbudget" onclick="filterOrders(this)">💰 Высокий бюджет</div>
           <div class="chip" data-filter="youtube" onclick="filterOrders(this)">🎬 YouTube</div>
+          <div class="chip" data-sort="price_asc" onclick="sortOrders(this)">💸 Дешевле</div>
+          <div class="chip" data-sort="price_desc" onclick="sortOrders(this)">💎 Дороже</div>
+        </div>
           <div class="chip" data-filter="reels" onclick="filterOrders(this)">📱 Reels</div>
           <div class="chip" data-filter="clips" onclick="filterOrders(this)">🎵 Клипы</div>
         </div>
@@ -1233,7 +1239,31 @@ function filterMonters(el) {
   el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   const cat = el.getAttribute('data-cat') || 'all';
+  state._montersSort = null;
   loadMonters(cat);
+}
+
+function sortMonters(el) {
+  el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const sort = el.getAttribute('data-sort');
+  state._montersSort = sort;
+
+  let list = [...(state._montersCache || [])];
+  if (sort === 'rating') {
+    list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  } else if (sort === 'price_asc') {
+    list.sort((a, b) => (parseFloat(a.price_from) || 0) - (parseFloat(b.price_from) || 0));
+  } else if (sort === 'price_desc') {
+    list.sort((a, b) => (parseFloat(b.price_from) || 0) - (parseFloat(a.price_from) || 0));
+  }
+
+  const container = document.getElementById('editors-list');
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✂️</div><div class="empty-state-title">Монтажёров пока нет</div></div>`;
+    return;
+  }
+  container.innerHTML = list.map((m, i) => renderMonterCard(m, i)).join('');
 }
 
 function renderMonterCard(user, idx) {
@@ -1409,7 +1439,29 @@ function filterOrders(el) {
   el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   const f = el.getAttribute('data-filter') || 'all';
+  state._ordersSort = null;
   loadOrders(f);
+}
+
+function sortOrders(el) {
+  el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const sort = el.getAttribute('data-sort');
+  state._ordersSort = sort;
+
+  let list = [...(state._ordersCache || [])];
+  if (sort === 'price_asc') {
+    list.sort((a, b) => (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0));
+  } else if (sort === 'price_desc') {
+    list.sort((a, b) => (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0));
+  }
+
+  const container = document.getElementById('jobs-list');
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">Заказов пока нет</div></div>`;
+    return;
+  }
+  container.innerHTML = list.map((o, i) => renderOrderCard(o, 0, i)).join('');
 }
 
 async function loadOrders(filter = 'all') {
@@ -1980,7 +2032,7 @@ async function loadMyResponses() {
     const rejected = proposals.filter(p => p.status === 'rejected');
 
     let html = '';
-    const renderProposalCard = (p) => {
+    const renderProposalCard = async (p) => {
       const order = orderMap[p.order_id] || {};
       const title = order.title || 'Заказ';
       const client = clientMap[order.client_id] || {};
@@ -1988,6 +2040,21 @@ async function loadMyResponses() {
       const statusTag = p.status === 'accepted' ? '<div class="tag tag-green">✅ Принят</div>' :
                         p.status === 'rejected' ? '<div class="tag tag-gray">Отклонён</div>' :
                         '<div class="tag tag-yellow">⏳ Ждём</div>';
+
+      // Проверяем можно ли оценить заказчика (заказ завершён, ещё не оценивали)
+      let reviewClientBtn = '';
+      if (p.status === 'accepted' && order.client_id && state.user?.id) {
+        try {
+          const orderFull = await sb.select('orders', `id=eq.${p.order_id}&limit=1`);
+          if (orderFull?.[0]?.status === 'done') {
+            const alreadyRev = await sb.select('reviews', `reviewer_id=eq.${state.user.id}&reviewee_id=eq.${order.client_id}&order_id=eq.${p.order_id}&limit=1`);
+            if (!alreadyRev || alreadyRev.length === 0) {
+              reviewClientBtn = `<button class="btn btn-ghost btn-sm" style="margin-top:8px;width:100%;" onclick="showReviewModal('${order.client_id}','${p.order_id}','client')">⭐ Оценить заказчика</button>`;
+            }
+          }
+        } catch(e) {}
+      }
+
       return `
         <div class="job-card" style="${p.status === 'accepted' ? 'border-color:rgba(74,222,128,0.2);' : ''}">
           <div class="job-card-header">
@@ -1998,20 +2065,21 @@ async function loadMyResponses() {
           ${client.username ? `<button class="btn ${p.status === 'accepted' ? 'btn-ghost' : 'btn-secondary'} btn-sm" onclick="openTelegramUser('${client.username}')">
             ${p.status === 'accepted' ? 'Перейти в чат' : 'Написать заказчику'}
           </button>` : ''}
+          ${reviewClientBtn}
         </div>`;
     };
 
     if (pending.length) {
       html += `<div class="section-title">Ожидание ответа <span class="badge">${pending.length}</span></div>`;
-      html += pending.map(renderProposalCard).join('');
+      html += (await Promise.all(pending.map(renderProposalCard))).join('');
     }
     if (accepted.length) {
       html += `<div class="section-title" style="margin-top:4px;">Принятые</div>`;
-      html += accepted.map(renderProposalCard).join('');
+      html += (await Promise.all(accepted.map(renderProposalCard))).join('');
     }
     if (rejected.length) {
       html += `<div class="section-title" style="margin-top:4px;">Отклонённые</div>`;
-      html += rejected.map(renderProposalCard).join('');
+      html += (await Promise.all(rejected.map(renderProposalCard))).join('');
     }
 
     container.innerHTML = html;
@@ -2084,11 +2152,22 @@ async function renderMyProfile() {
       </div>
     </div>` : '';
 
+  const myRating = state.user?.rating ? Number(state.user.rating).toFixed(1) : null;
+
   document.getElementById('my-profile-content').innerHTML = `
     <div class="profile-hero">
       <div class="profile-avatar" style="border-color:rgba(232,255,71,0.3);">${initials}</div>
       <div class="profile-name">${escHtml(name)}</div>
       <div class="profile-handle">${tgHandle ? '@' + tgHandle + ' • ' : ''}${roleLabel}</div>
+      ${myRating ? `
+      <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.25);border-radius:20px;padding:6px 14px;margin-top:8px;">
+        <span style="font-size:16px;">⭐</span>
+        <span style="font-family:var(--font-display);font-size:16px;font-weight:700;color:#fbbf24;">${myRating}</span>
+        <span style="font-size:11px;color:var(--muted);">— мой рейтинг</span>
+      </div>` : `
+      <div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:6px 14px;margin-top:8px;">
+        <span style="font-size:12px;color:var(--muted);">Рейтинга пока нет — выполните заказы</span>
+      </div>`}
     </div>
 
     ${portfolioSection}
@@ -2109,6 +2188,14 @@ async function renderMyProfile() {
       <div class="card" style="margin-bottom:12px;">
         <div style="font-size:12px;color:var(--muted2);margin-bottom:4px;">Telegram ID</div>
         <div style="font-size:13px;">${state.tgUser?.id || '—'}</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Контакт для связи</div>
+        <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#26b6ff"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.9 8.2l-2 9.4c-.1.6-.5.8-.9.5l-2.5-1.8-1.2 1.1c-.1.1-.3.2-.6.2l.2-2.8 5.2-4.7c.2-.2 0-.3-.3-.1L7.1 14.4l-2.5-.8c-.5-.2-.5-.5.1-.8l11.5-4.4c.5-.2.9.1.7.8z"/></svg>
+          <div style="font-size:13px;flex:1;">${tgHandle ? '@' + escHtml(tgHandle) : '<span style="color:var(--muted);">Не указан</span>'}</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="showEditContactModal()">✏️ Изменить username</button>
       </div>
       <div style="margin-bottom:10px;">
         <div style="font-family:var(--font-display);font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Переключить аккаунт</div>
@@ -2481,6 +2568,42 @@ function toggleSpec(spec) {
   } else {
     window._selectedSpecs.splice(idx, 1);
     btn.classList.remove('active');
+  }
+}
+
+function showEditContactModal() {
+  const current = state.user?.tg_username || '';
+  openModal(`
+    <div class="display-title" style="font-size:16px;margin-bottom:6px;">Контакт для связи</div>
+    <p style="font-size:12px;color:var(--muted2);margin-bottom:16px;">Введите ваш Telegram username — на него будет вести кнопка «Написать в Telegram»</p>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Username без @</label>
+        <input class="input" placeholder="username" id="edit-contact-val" value="${escHtml(current)}">
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveContact()">Сохранить</button>
+  `);
+}
+
+async function saveContact() {
+  let val = (document.getElementById('edit-contact-val')?.value || '').trim().replace(/^@/, '');
+  try {
+    // Проверяем не занят ли username другим пользователем
+    if (val) {
+      const taken = await sb.select('users', `tg_username=ilike.${val}&id=neq.${state.user.id}&limit=1`);
+      if (taken && taken.length > 0) {
+        showToast('⚠️ Этот username уже занят'); return;
+      }
+    }
+    await sb.update('users', { tg_username: val || null }, `telegram_id=eq.${state.tgUser.id}`);
+    state.user.tg_username = val || '';
+    showToast('✅ Контакт сохранён!', 'success');
+    document.getElementById('modal').classList.remove('show');
+    showScreen('screen-my-profile');
+    await renderMyProfile();
+  } catch(e) {
+    showToast('❌ ' + sbError(e).slice(0,80));
   }
 }
 
