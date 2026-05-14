@@ -1108,6 +1108,7 @@ async function loadOrCreateUser() {
 
   if (users && users.length > 0) {
     state.user = users[0];
+    if (state.user?.role === 'editor') state.user.role = 'monter';
     state.role = state.user.role || null;
     if (state.role) {
       // Аккаунт уже зарегистрирован — сразу в дашборд
@@ -2651,8 +2652,8 @@ async function completeSetup() {
   btn.disabled = true;
   btn.textContent = 'Сохраняем...';
 
-  // Map role: 'editor' → 'monter', 'client' → 'client'
-  const dbRole = state.role === 'editor' ? 'editor' : 'client';
+  // Map role: editor/monter UI role -> single DB role
+  const dbRole = (state.role === 'editor' || state.role === 'monter') ? 'monter' : 'client';
 
   try {
     // Re-fetch user если id отсутствует
@@ -2664,24 +2665,26 @@ async function completeSetup() {
     }
 
     // Проверяем что этот tg_username не занят другим пользователем
-    try {
-      const taken = await sb.select('users',
-        `tg_username=eq.${tgUsernameRaw}&id=neq.${state.user?.id || '00000000-0000-0000-0000-000000000000'}&limit=1`
-      );
-      if (taken && taken.length > 0) {
-        showToast('⚠️ Этот @username уже занят другим пользователем');
-        btn.disabled = false;
-        btn.textContent = 'Готово — открыть приложение 🚀';
-        return;
-      }
-    } catch(e) {}
+    if (tgUsernameRaw) {
+      try {
+        const taken = await sb.select('users',
+          `tg_username=eq.${tgUsernameRaw}&id=neq.${state.user?.id || '00000000-0000-0000-0000-000000000000'}&limit=1`
+        );
+        if (taken && taken.length > 0) {
+          showToast('⚠️ Этот @username уже занят другим пользователем');
+          btn.disabled = false;
+          btn.textContent = 'Готово — открыть приложение 🚀';
+          return;
+        }
+      } catch(e) {}
+    }
 
     // Если TG ID уже зарегистрирован — просто входим
     // (пользователь мог нажать "Далее" повторно)
 
     // Если у юзера уже есть role — он уже зарегистрирован, просто входим
     if (state.user?.role) {
-      state.role = state.user.role;
+      state.role = state.user.role === 'editor' ? 'monter' : state.user.role;
       showToast('✅ Добро пожаловать!', 'success');
       btn.disabled = false;
       btn.textContent = 'Готово — открыть приложение 🚀';
@@ -2690,18 +2693,20 @@ async function completeSetup() {
     }
 
     // Проверяем что tg_username не занят другим юзером
-    try {
-      const existingByUsername = await sb.select('users', `tg_username=ilike.${tgUsernameRaw}&limit=1`);
-      if (existingByUsername && existingByUsername.length > 0) {
-        const other = existingByUsername[0];
-        if (other.telegram_id !== String(state.tgUser.id) && other.role) {
-          showToast('⚠️ Этот username уже занят другим аккаунтом');
-          btn.disabled = false;
-          btn.textContent = 'Готово — открыть приложение 🚀';
-          return;
+    if (tgUsernameRaw) {
+      try {
+        const existingByUsername = await sb.select('users', `tg_username=ilike.${tgUsernameRaw}&limit=1`);
+        if (existingByUsername && existingByUsername.length > 0) {
+          const other = existingByUsername[0];
+          if (other.telegram_id !== String(state.tgUser.id) && other.role) {
+            showToast('⚠️ Этот username уже занят другим аккаунтом');
+            btn.disabled = false;
+            btn.textContent = 'Готово — открыть приложение 🚀';
+            return;
+          }
         }
-      }
-    } catch(e) {}
+      } catch(e) {}
+    }
 
     const experience = (document.getElementById('setup-experience')?.value || '').trim();
     const selectedSpecs = window._selectedSpecs || [];
@@ -2712,7 +2717,20 @@ async function completeSetup() {
     };
     if (experience) updatePayload.experience = experience;
     if (selectedSpecs.length > 0) updatePayload.specialty = selectedSpecs.join(',');
-    await sb.update('users', updatePayload, `telegram_id=eq.${state.tgUser.id}`);
+    // Страховка от гонки: если строка юзера не успела создаться, создаём её и повторяем update
+    try {
+      await sb.update('users', updatePayload, `telegram_id=eq.${state.tgUser.id}`);
+    } catch (e) {
+      try {
+        await sb.insert('users', {
+          telegram_id: String(state.tgUser.id),
+          username: name,
+          tg_username: tgUsernameRaw || null,
+          role: dbRole
+        });
+      } catch (_) {}
+      await sb.update('users', updatePayload, `telegram_id=eq.${state.tgUser.id}`);
+    }
     // Re-fetch to get full updated user object
     const updatedUsers = await sb.select('users', `telegram_id=eq.${state.tgUser.id}&limit=1`);
     if (updatedUsers?.[0]) state.user = updatedUsers[0];
@@ -2744,19 +2762,21 @@ async function completeSetup() {
 }
 
 async function switchRole(newRole) {
-  if (state.role === newRole) {
+  const normalizedCurrent = state.role === 'editor' ? 'monter' : state.role;
+  const dbRole = newRole === 'editor' ? 'monter' : newRole;
+  if (normalizedCurrent === dbRole) {
     showToast('Вы уже в этом режиме');
     return;
   }
   try {
-    await sb.update('users', { role: newRole }, `telegram_id=eq.${state.tgUser.id}`);
-    state.user.role = newRole;
-    state.role = newRole;
+    await sb.update('users', { role: dbRole }, `telegram_id=eq.${state.tgUser.id}`);
+    state.user.role = dbRole;
+    state.role = dbRole;
     state._montersCache = null;
     state._ordersCache = null;
     const navListLabel = document.getElementById('nav-list-label');
-    if (navListLabel) navListLabel.textContent = newRole === 'client' ? 'Заказы' : 'Отклики';
-    showToast(newRole === 'client' ? '🎬 Режим заказчика' : '✂️ Режим монтажёра', 'success');
+    if (navListLabel) navListLabel.textContent = dbRole === 'client' ? 'Заказы' : 'Отклики';
+    showToast(dbRole === 'client' ? '🎬 Режим заказчика' : '✂️ Режим монтажёра', 'success');
     await enterDashboard();
   } catch(e) {
     showToast('❌ ' + sbError(e).slice(0, 80));
