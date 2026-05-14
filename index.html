@@ -638,17 +638,6 @@
         </div>
       </div>
 
-      <div class="form-row-2" id="editor-price-row">
-        <div class="input-group">
-          <label class="input-label">Цена от (₽)</label>
-          <input class="input" type="number" placeholder="5000" id="setup-price-from">
-        </div>
-        <div class="input-group">
-          <label class="input-label">Цена до (₽)</label>
-          <input class="input" type="number" placeholder="30000" id="setup-price-to">
-        </div>
-      </div>
-
       <button class="btn btn-primary" onclick="completeSetup()" id="setup-btn" style="margin-top:8px;">Готово — открыть приложение 🚀</button>
     </div>
     <div class="scroll-pad"></div>
@@ -677,8 +666,6 @@
           <div class="chip" data-cat="youtube" onclick="filterMonters(this)">🎬 YouTube</div>
           <div class="chip" data-cat="clips" onclick="filterMonters(this)">🎵 Клипы</div>
           <div class="chip" data-sort="rating" onclick="sortMonters(this)">⭐ По рейтингу</div>
-          <div class="chip" data-sort="price_asc" onclick="sortMonters(this)">💰 Дешевле</div>
-          <div class="chip" data-sort="price_desc" onclick="sortMonters(this)">💎 Дороже</div>
         </div>
       </div>
 
@@ -714,8 +701,6 @@
           <div class="chip" data-filter="youtube" onclick="filterOrders(this)">🎬 YouTube</div>
           <div class="chip" data-filter="reels" onclick="filterOrders(this)">📱 Reels</div>
           <div class="chip" data-filter="clips" onclick="filterOrders(this)">🎵 Клипы</div>
-          <div class="chip" data-sort="price_asc" onclick="sortOrders(this)">💸 Дешевле</div>
-          <div class="chip" data-sort="price_desc" onclick="sortOrders(this)">💎 Дороже</div>
         </div>
       </div>
 
@@ -1006,12 +991,24 @@ const sb = {
   },
 
   async upsert(table, data, onConflict) {
-    return this.query(table, {
+    const suffix = onConflict ? `?on_conflict=${encodeURIComponent(onConflict)}` : '';
+    const url = `${SUPABASE_URL}/rest/v1/${table}${suffix}`;
+    const res = await fetch(url, {
       method: 'POST',
-      body: data,
-      prefer: `resolution=merge-duplicates,return=representation`,
-      headers: onConflict ? { 'Prefer': `resolution=merge-duplicates,return=representation` } : {}
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=representation'
+      },
+      body: JSON.stringify(data)
     });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
   }
 };
 
@@ -2551,7 +2548,8 @@ function selectRole(role) {
 
   const isEditor = role === 'editor';
   document.getElementById('editor-bio-row').style.display = isEditor ? '' : 'none';
-  document.getElementById('editor-price-row').style.display = isEditor ? '' : 'none';
+  const editorPriceRow = document.getElementById('editor-price-row');
+  if (editorPriceRow) editorPriceRow.style.display = isEditor ? '' : 'none';
 }
 
 // Track selected specialties
@@ -2717,27 +2715,18 @@ async function completeSetup() {
     };
     if (experience) updatePayload.experience = experience;
     if (selectedSpecs.length > 0) updatePayload.specialty = selectedSpecs.join(',');
-    // Страховка от гонки: если строка юзера не успела создаться, создаём её и повторяем update
-    try {
-      await sb.update('users', updatePayload, `telegram_id=eq.${state.tgUser.id}`);
-    } catch (e) {
-      try {
-        await sb.insert('users', {
-          telegram_id: String(state.tgUser.id),
-          username: name,
-          tg_username: tgUsernameRaw || null,
-          role: dbRole
-        });
-      } catch (_) {}
-      await sb.update('users', updatePayload, `telegram_id=eq.${state.tgUser.id}`);
+    const upserted = await sb.upsert('users', [{
+      telegram_id: String(state.tgUser.id),
+      ...updatePayload
+    }], 'telegram_id');
+    if (upserted?.[0]) {
+      state.user = upserted[0];
+    } else {
+      state.user = state.user || {};
+      state.user.role = dbRole;
+      state.user.username = name;
+      state.user.tg_username = tgUsernameRaw || null;
     }
-    // Re-fetch to get full updated user object
-    const updatedUsers = await sb.select('users', `telegram_id=eq.${state.tgUser.id}&limit=1`);
-    if (updatedUsers?.[0]) state.user = updatedUsers[0];
-    state.user = state.user || {};
-    state.user.role = dbRole;
-    state.user.username = name;
-    state.user.tg_username = tgUsernameRaw;
     state.role = dbRole;
 
     document.getElementById('dot-s2').classList.remove('active');
@@ -2755,7 +2744,7 @@ async function completeSetup() {
     }, 600);
   } catch(e) {
     console.error(e);
-    showToast('❌ Ошибка сохранения');
+    showToast('❌ ' + sbError(e).slice(0, 120));
     btn.disabled = false;
     btn.textContent = 'Готово — открыть приложение 🚀';
   }
@@ -2879,7 +2868,8 @@ function closeModal(e) {
 
 // ============ INIT ============
 document.getElementById('editor-bio-row').style.display = 'none';
-document.getElementById('editor-price-row').style.display = 'none';
+const editorPriceRow = document.getElementById('editor-price-row');
+if (editorPriceRow) editorPriceRow.style.display = 'none';
 
 // Start app
 initApp();
