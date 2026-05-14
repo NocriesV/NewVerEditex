@@ -995,7 +995,7 @@ const sb = {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
         'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
+        'Prefer': 'return=representation'
       },
       body: JSON.stringify(data)
     });
@@ -1047,7 +1047,7 @@ async function initApp() {
   } else {
     let stored = null;
     try { stored = localStorage.getItem('_editex_uid'); } catch(e) {}
-    const uid = stored || String(Date.now());
+    const uid = stored || crypto.randomUUID();
     try { if (!stored) localStorage.setItem('_editex_uid', uid); } catch(e) {}
     state.tgUser = { id: uid, first_name: '', username: '' };
     dbg('Браузер ID: ' + uid);
@@ -1130,7 +1130,7 @@ async function loadOrCreateUser() {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
         'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
+        'Prefer': 'return=representation'
       },
       body: JSON.stringify({
   telegram_id: telegramId,
@@ -1150,17 +1150,17 @@ async function loadOrCreateUser() {
     return;
   }
 
-  // 3. Re-fetch after insert
-  try {
-    const fresh = await sb.select('users', `telegram_id=eq.${telegramId}&limit=1`);
-    if (fresh && fresh.length > 0) {
-      state.user = fresh[0];
-    } else {
-      state.user = { telegram_id: telegramId, id: null, role: null };
-    }
-  } catch(e) {
-    state.user = { telegram_id: telegramId, id: null, role: null };
-  }
+  const insertedUser = await insertResp.json();
+
+if (insertedUser && insertedUser.length > 0) {
+  state.user = insertedUser[0];
+} else {
+  state.user = {
+    telegram_id: telegramId,
+    id: null,
+    role: null
+  };
+}
 
   showScreen('screen-onboarding');
 }
@@ -1208,7 +1208,7 @@ async function loadMonters(cat = 'all') {
 
   try {
     if (!state._montersCache || state._montersCache.length === 0) {
-      const monters = await sb.select('users', `role=eq.monter&order=created_at.desc`);
+      const monters = await sb.select('users', `role=eq.editor&order=created_at.desc`);
       state._montersCache = monters || [];
     }
 
@@ -1216,7 +1216,15 @@ async function loadMonters(cat = 'all') {
 
     // Filter by category (specialty field)
     if (cat !== 'all') {
-      list = list.filter(m => (m.specialty || '').toLowerCase().includes(cat));
+     list = list.filter(m => {
+  const specialty = Array.isArray(m.specialty)
+    ? m.specialty.join(',')
+    : typeof m.specialty === 'string'
+      ? m.specialty
+      : '';
+
+  return specialty.toLowerCase().includes(cat);
+});
     }
 
     if (!list || list.length === 0) {
@@ -1322,13 +1330,16 @@ async function viewMonterProfileFull(userId) {
   screen.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
   navigate('screen-editor-profile');
   try {
-    const users = await sb.select('users', `id=eq.${userId}&limit=1`);
+    const users = await sb.select('users', `id=eq.${encodeURIComponent(userId)}&limit=1`);
     const user = users?.[0];
     if (!user) { screen.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Монтажёр не найден</div></div>'; return; }
     // Load portfolio for this monter
     let portfolio = [];
     try {
-      const pRows = await sb.select('portfolio', `user_id=eq.${userId}&order=created_at.asc`);
+      const pRows = await sb.select(
+  'portfolio',
+  `user_id=eq.${encodeURIComponent(state.user.id)}&order=created_at.asc`
+);
       if (pRows) portfolio = pRows;
     } catch(e) {}
     renderMonterProfileById(user, portfolio);
@@ -1882,10 +1893,10 @@ async function submitReview(revieweeId, orderId, revieweeRole) {
 
 async function recalcRating(userId) {
   try {
-    const reviews = await sb.select('reviews', `reviewee_id=eq.${userId}&select=rating`);
+    const reviews = await sb.select('reviews', `reviewee_id=eq.${encodeURIComponent(userId)}&select=rating`);
     if (!reviews || reviews.length === 0) return;
     const avg = reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
-    await sb.update('users', { rating: Math.round(avg * 10) / 10 }, `id=eq.${userId}`);
+    await sb.update('users', { rating: Math.round(avg * 10) / 10 }, `id=eq.${encodeURIComponent(userId)}`);
   } catch(e) {}
 }
 
@@ -2092,7 +2103,7 @@ async function loadMyResponses() {
 
 // ============ RENDER MY PROFILE ============
 async function renderMyProfile() {
-  const isEditor = state.role === 'monter';
+  const isEditor = state.role === 'editor';
   const name = state.user?.username || state.tgUser?.first_name || 'Пользователь';
   const initials = name.slice(0, 2).toUpperCase();
   const roleLabel = isEditor ? 'Монтажёр' : 'Заказчик';
@@ -2102,7 +2113,10 @@ async function renderMyProfile() {
   let portfolio = [];
   if (isEditor) {
     try {
-      const pRows = await sb.select('portfolio', `user_id=eq.${state.user.id}&order=created_at.asc`);
+     const pRows = await sb.select(
+  'portfolio',
+  `user_id=eq.${encodeURIComponent(state.user.id)}&order=created_at.asc`
+);
       if (pRows) portfolio = pRows;
     } catch(e) {}
   }
@@ -2638,7 +2652,7 @@ async function completeSetup() {
   btn.textContent = 'Сохраняем...';
 
   // Map role: 'editor' → 'monter', 'client' → 'client'
-  const dbRole = state.role === 'editor' ? 'monter' : 'client';
+  const dbRole = state.role === 'editor' ? 'editor' : 'client';
 
   try {
     // Re-fetch user если id отсутствует
