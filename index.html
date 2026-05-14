@@ -532,7 +532,9 @@
     border-radius: 22px;
     display: flex; align-items: center; justify-content: center;
     animation: pulse 1.5s ease-in-out infinite;
+    overflow: hidden;
   }
+  .brand-logo-svg { width: 44px; height: 44px; }
   @keyframes pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(232,255,71,0.4); }
     50% { box-shadow: 0 0 0 16px rgba(232,255,71,0); }
@@ -546,9 +548,14 @@
   <!-- =================== LOADING =================== -->
   <div class="screen active" id="screen-loading">
     <div class="loading-logo">
-      <svg width="40" height="40" viewBox="0 0 44 44" fill="none">
-        <path d="M8 12L22 6L36 12V24C36 31.7 29.5 38 22 40C14.5 38 8 31.7 8 24V12Z" fill="#000" opacity="0.6"/>
-        <path d="M17 22L20.5 25.5L27 18" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <svg class="brand-logo-svg" viewBox="0 0 120 120" fill="none">
+        <g stroke="#0B0D12" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+          <path d="M18 24H64L42 60L64 96H18V24Z"/>
+          <path d="M34 40H58"/>
+          <path d="M34 60H52"/>
+          <path d="M70 24L102 60L70 96"/>
+          <path d="M102 24L70 60L102 96"/>
+        </g>
       </svg>
     </div>
     <div class="display-title" style="font-size:20px;">Editex</div>
@@ -560,9 +567,14 @@
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 28px;">
       <div style="width:100%;max-width:340px;text-align:center;">
         <div class="onboarding-logo" style="margin:0 auto 32px;">
-          <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
-            <path d="M8 12L22 6L36 12V24C36 31.7 29.5 38 22 40C14.5 38 8 31.7 8 24V12Z" fill="#000" opacity="0.6"/>
-            <path d="M17 22L20.5 25.5L27 18" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg class="brand-logo-svg" viewBox="0 0 120 120" fill="none">
+            <g stroke="#0B0D12" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+              <path d="M18 24H64L42 60L64 96H18V24Z"/>
+              <path d="M34 40H58"/>
+              <path d="M34 60H52"/>
+              <path d="M70 24L102 60L70 96"/>
+              <path d="M102 24L70 60L102 96"/>
+            </g>
           </svg>
         </div>
         <h1 class="display-title fade-up" style="font-size:28px;line-height:1.15;margin-bottom:10px;">Editex</h1>
@@ -2729,8 +2741,10 @@ async function completeSetup() {
     }
     state.role = dbRole;
 
-    document.getElementById('dot-s2').classList.remove('active');
-    document.getElementById('dot-s3').classList.add('active');
+    const dotS2 = document.getElementById('dot-s2');
+    const dotS3 = document.getElementById('dot-s3');
+    if (dotS2) dotS2.classList.remove('active');
+    if (dotS3) dotS3.classList.add('active');
 
     showToast('✅ Профиль создан!', 'success');
 
