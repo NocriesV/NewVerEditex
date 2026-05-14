@@ -712,11 +712,10 @@
           <div class="chip" data-filter="urgent" onclick="filterOrders(this)">📦 Срочные</div>
           <div class="chip" data-filter="highbudget" onclick="filterOrders(this)">💰 Высокий бюджет</div>
           <div class="chip" data-filter="youtube" onclick="filterOrders(this)">🎬 YouTube</div>
-          <div class="chip" data-sort="price_asc" onclick="sortOrders(this)">💸 Дешевле</div>
-          <div class="chip" data-sort="price_desc" onclick="sortOrders(this)">💎 Дороже</div>
-        </div>
           <div class="chip" data-filter="reels" onclick="filterOrders(this)">📱 Reels</div>
           <div class="chip" data-filter="clips" onclick="filterOrders(this)">🎵 Клипы</div>
+          <div class="chip" data-sort="price_asc" onclick="sortOrders(this)">💸 Дешевле</div>
+          <div class="chip" data-sort="price_desc" onclick="sortOrders(this)">💎 Дороже</div>
         </div>
       </div>
 
@@ -1123,8 +1122,9 @@ async function loadOrCreateUser() {
   }
 
   // 2. Новый юзер — вставляем запись
+  let insertResp = null;
   try {
-    const insertResp = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    insertResp = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -1208,7 +1208,7 @@ async function loadMonters(cat = 'all') {
 
   try {
     if (!state._montersCache || state._montersCache.length === 0) {
-      const monters = await sb.select('users', `role=eq.editor&order=created_at.desc`);
+      const monters = await sb.select('users', `role=in.(editor,monter)&order=created_at.desc`);
       state._montersCache = monters || [];
     }
 
@@ -1576,7 +1576,7 @@ async function openJobDetail(orderId) {
       const clients = await sb.select('users', `id=eq.${order.client_id}&limit=1`);
       if (clients?.[0]) {
         clientName = clients[0].username || 'Заказчик';
-        clientUsername = clients[0].username || '';
+        clientUsername = clients[0].tg_username || '';
       }
     } catch(e) {}
 
@@ -1703,7 +1703,7 @@ async function loadProposals(orderId) {
       const m = monters[p.monter_id] || {};
       const name = m.username || 'Монтажёр';
       const initials = name.slice(0, 2).toUpperCase();
-      const tgHandle = m.tg_username || m.username || '';
+      const tgHandle = m.tg_username || '';
       const price = p.price ? `${Number(p.price).toLocaleString('ru-RU')} ₽` : 'Не указана';
       const statusTag = p.status === 'accepted' ? '<span class="tag tag-green">✅ Принят</span>' :
                         p.status === 'rejected' ? '<span class="tag tag-gray">Отклонён</span>' :
@@ -2034,7 +2034,7 @@ async function loadMyResponses() {
     let clientMap = {};
     try {
       if (clientIds.length) {
-        const clients = await sb.select('users', `id=in.(${clientIds.join(',')})&select=id,username`);
+        const clients = await sb.select('users', `id=in.(${clientIds.join(',')})&select=id,username,tg_username`);
         if (clients) clients.forEach(c => clientMap[c.id] = c);
       }
     } catch(e) {}
@@ -2074,7 +2074,7 @@ async function loadMyResponses() {
             ${statusTag}
           </div>
           ${price ? `<div style="font-size:12px;color:var(--muted2);margin:6px 0 10px;">Ваша цена: <b style="color:var(--text);">${price}</b></div>` : ''}
-          ${client.username ? `<button class="btn ${p.status === 'accepted' ? 'btn-ghost' : 'btn-secondary'} btn-sm" onclick="openTelegramUser('${client.username}')">
+          ${client.tg_username ? `<button class="btn ${p.status === 'accepted' ? 'btn-ghost' : 'btn-secondary'} btn-sm" onclick="event.stopPropagation(); openTelegramUser('${client.tg_username}')">
             ${p.status === 'accepted' ? 'Перейти в чат' : 'Написать заказчику'}
           </button>` : ''}
           ${reviewClientBtn}
@@ -2103,7 +2103,7 @@ async function loadMyResponses() {
 
 // ============ RENDER MY PROFILE ============
 async function renderMyProfile() {
-  const isEditor = state.role === 'editor';
+  const isEditor = state.role === 'editor' || state.role === 'monter';
   const name = state.user?.username || state.tgUser?.first_name || 'Пользователь';
   const initials = name.slice(0, 2).toUpperCase();
   const roleLabel = isEditor ? 'Монтажёр' : 'Заказчик';
@@ -2216,7 +2216,7 @@ async function renderMyProfile() {
         <div style="font-family:var(--font-display);font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Переключить аккаунт</div>
         <div style="display:flex;gap:8px;">
           <button class="btn ${state.role==='client'?'btn-primary':'btn-secondary'} btn-sm" style="flex:1;" onclick="switchRole('client')">🎬 Заказчик</button>
-          <button class="btn ${state.role==='monter'?'btn-primary':'btn-secondary'} btn-sm" style="flex:1;" onclick="switchRole('monter')">✂️ Монтажёр</button>
+          <button class="btn ${isEditor?'btn-primary':'btn-secondary'} btn-sm" style="flex:1;" onclick="switchRole('editor')">✂️ Монтажёр</button>
         </div>
       </div>
       <button class="btn btn-danger" onclick="logout()">Выйти из аккаунта</button>
@@ -2792,12 +2792,14 @@ async function logout() {
 
 // ============ TELEGRAM UTILS ============
 function openTelegramUser(username) {
-  if (!username) { showToast('❌ Username не указан'); return; }
+  const cleanUsername = String(username || '').trim().replace(/^@/, '');
+  if (!cleanUsername) { showToast('❌ Username не указан'); return; }
+  const tgUrl = `https://t.me/${encodeURIComponent(cleanUsername)}`;
   const tg = window.Telegram?.WebApp;
   if (tg) {
-    tg.openTelegramLink(`https://t.me/${username}`);
+    tg.openTelegramLink(tgUrl);
   } else {
-    window.open(`https://t.me/${username}`, '_blank');
+    window.open(tgUrl, '_blank');
   }
 }
 
