@@ -954,6 +954,27 @@
     <div class="screen-content" id="client-profile-content"></div>
   </div>
 
+  <!-- =================== REVIEWS LIST =================== -->
+  <div class="screen" id="screen-reviews">
+    <div class="page-header">
+      <div class="back-btn" onclick="showScreen(window._reviewsBackScreen || 'screen-my-profile')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;" id="reviews-header">Отзывы</span>
+    </div>
+    <div class="screen-content">
+      <div style="padding:12px 20px 8px;display:flex;gap:8px;overflow-x:auto;">
+        <div class="chip active" id="reviews-filter-all" onclick="setReviewsFilter('all')">Все</div>
+        <div class="chip" id="reviews-filter-positive" onclick="setReviewsFilter('positive')">Положительные</div>
+        <div class="chip" id="reviews-filter-negative" onclick="setReviewsFilter('negative')">Отрицательные</div>
+      </div>
+      <div id="reviews-list-content">
+        <div class="loader"><div class="spinner"></div> Загрузка...</div>
+      </div>
+      <div class="scroll-pad"></div>
+    </div>
+  </div>
+
 
 </div><!-- /app -->
 
@@ -1099,6 +1120,9 @@ const state = {
   user: null,
   tgUser: null,
 };
+window._reviewsTargetUserId = null;
+window._reviewsFilter = 'all';
+window._reviewsBackScreen = null;
 
 window._leaderboardPeriod = 'all';
 const ADMIN_TELEGRAM_IDS = ['7847785699', '6288239521'];
@@ -1816,9 +1840,12 @@ async function renderMonterProfileById(user, portfolio = []) {
 
   // Load deal count + rating for this monter
   let monterDeals = 0;
+  let totalReviewsCount = 0;
   try {
     const dr = await sb.select('reviews', `reviewee_id=eq.${user.id}&deal_happened=eq.true&select=id`);
     monterDeals = dr ? dr.length : 0;
+    const allReviews = await sb.select('reviews', `reviewee_id=eq.${user.id}&select=id`);
+    totalReviewsCount = allReviews ? allReviews.length : 0;
   } catch(e) {}
   const ratingDisplay = user.rating ? `⭐ ${Number(user.rating).toFixed(1)}` : '—';
 
@@ -1847,6 +1874,7 @@ async function renderMonterProfileById(user, portfolio = []) {
     </div>
 
     <div style="padding:16px 20px 100px;">
+      <button class="btn btn-secondary" style="margin-bottom:10px;" onclick="openReviewsScreen('${user.id}','Отзывы о монтажёре','screen-editor-profile')">📝 Отзывы (${totalReviewsCount})</button>
       ${tgHandle ? `<button class="connect-btn" onclick="openTelegramUser('${tgHandle}')">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="#26b6ff"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.6 0 12 0zm5.9 8.2l-2 9.4c-.1.6-.5.8-.9.5l-2.5-1.8-1.2 1.1c-.1.1-.3.2-.6.2l.2-2.8 5.2-4.7c.2-.2 0-.3-.3-.1L7.1 14.4l-2.5-.8c-.5-.2-.5-.5.1-.8l11.5-4.4c.5-.2.9.1.7.8z"/></svg>
         Написать в Telegram
@@ -2397,9 +2425,12 @@ async function viewClientProfile(clientId) {
 
     // Count successful deals as client
     let successDeals = 0;
+    let totalReviewsCount = 0;
     try {
       const r = await sb.select('reviews', `reviewee_id=eq.${clientId}&deal_happened=eq.true&select=id`);
       successDeals = r ? r.length : 0;
+      const rr = await sb.select('reviews', `reviewee_id=eq.${clientId}&select=id`);
+      totalReviewsCount = rr ? rr.length : 0;
     } catch(e) {}
 
     const name = user.username || 'Заказчик';
@@ -2419,6 +2450,7 @@ async function viewClientProfile(clientId) {
         </div>
       </div>
       <div style="padding:16px 20px 100px;">
+        <button class="btn btn-secondary" style="margin-bottom:10px;" onclick="openReviewsScreen('${clientId}','Отзывы о заказчике','screen-client-profile')">📝 Отзывы (${totalReviewsCount})</button>
         <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:14px;padding:14px;margin-bottom:14px;text-align:center;">
           <div style="font-size:13px;font-weight:600;color:#4ade80;">${dealLabel}</div>
         </div>
@@ -3757,6 +3789,67 @@ function declension(n, forms) {
 
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setReviewsFilter(filter) {
+  window._reviewsFilter = filter;
+  ['all', 'positive', 'negative'].forEach(f => {
+    const el = document.getElementById('reviews-filter-' + f);
+    if (el) el.classList.toggle('active', f === filter);
+  });
+  renderReviewsList();
+}
+
+async function openReviewsScreen(userId, title = 'Отзывы', backScreen = null) {
+  window._reviewsTargetUserId = userId;
+  window._reviewsBackScreen = backScreen || state.currentScreen;
+  window._reviewsFilter = 'all';
+  const header = document.getElementById('reviews-header');
+  if (header) header.textContent = title;
+  navigate('screen-reviews');
+  setReviewsFilter('all');
+  await renderReviewsList();
+}
+
+async function renderReviewsList() {
+  const root = document.getElementById('reviews-list-content');
+  if (!root) return;
+  root.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+  try {
+    const userId = window._reviewsTargetUserId;
+    if (!userId) {
+      root.innerHTML = '<div class="empty-state"><div class="empty-state-title">Пользователь не выбран</div></div>';
+      return;
+    }
+    const rows = await sb.select('reviews', `reviewee_id=eq.${encodeURIComponent(userId)}&order=created_at.desc`);
+    let list = rows || [];
+    const filter = window._reviewsFilter || 'all';
+    if (filter === 'positive') list = list.filter(r => Number(r.rating || 0) >= 4 && r.deal_happened !== false);
+    if (filter === 'negative') list = list.filter(r => Number(r.rating || 0) <= 3 || r.deal_happened === false);
+
+    if (!list.length) {
+      root.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📝</div><div class="empty-state-title">Отзывов нет</div></div>';
+      return;
+    }
+
+    root.innerHTML = list.map(r => {
+      const rating = Number(r.rating || 0);
+      const date = r.created_at ? new Date(r.created_at).toLocaleDateString('ru-RU') : '';
+      const sentiment = rating >= 4 ? '<span class="tag tag-green">Положительный</span>' : '<span class="tag tag-orange">Отрицательный</span>';
+      const deal = r.deal_happened === false ? '<span class="tag tag-gray">Сделка не состоялась</span>' : '';
+      return `
+        <div class="card" style="margin:0 20px 10px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+            <div style="font-size:12px;color:var(--muted2);">${date}</div>
+            <div style="font-size:13px;color:#fbbf24;font-weight:700;">⭐ ${rating ? rating.toFixed(1) : '—'}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;">${sentiment}${deal}</div>
+          <div style="font-size:13px;color:var(--muted2);line-height:1.55;">${escHtml(r.comment || 'Без комментария')}</div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    root.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки отзывов</div></div>';
+  }
 }
 
 function filterChip(el) {
