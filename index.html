@@ -1127,8 +1127,15 @@ function renderLeaderboardItem(user, idx) {
   const done = Number(user.completed_orders || 0);
   const initials = name.slice(0, 2).toUpperCase();
   const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+  const medalStyle = idx === 0
+    ? 'background:linear-gradient(135deg, rgba(255,215,0,0.20), rgba(255,184,28,0.08));border-color:rgba(255,215,0,0.45);'
+    : idx === 1
+      ? 'background:linear-gradient(135deg, rgba(192,192,192,0.22), rgba(148,163,184,0.08));border-color:rgba(192,192,192,0.45);'
+      : idx === 2
+        ? 'background:linear-gradient(135deg, rgba(205,127,50,0.22), rgba(180,83,9,0.08));border-color:rgba(205,127,50,0.45);'
+        : '';
   return `
-    <div class="card" style="margin:0 20px 10px;">
+    <div class="card" style="margin:0 20px 10px;${medalStyle}">
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="font-family:var(--font-display);min-width:36px;color:var(--accent);font-size:14px;">${medal}</div>
         <div class="avatar" style="width:40px;height:40px;font-size:13px;">${initials}</div>
@@ -3015,6 +3022,8 @@ function updateNav() {
 
   document.getElementById('bottom-nav').classList.toggle('hidden', !showNav);
   document.getElementById('fab').classList.toggle('hidden', s !== 'screen-client-dashboard' || state.role !== 'client');
+  const lbNav = document.getElementById('nav-leaderboard');
+  if (lbNav) lbNav.style.display = (state.role === 'client') ? 'none' : 'flex';
 
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
   if (s.includes('dashboard')) document.getElementById('nav-home').classList.add('active');
@@ -3040,6 +3049,10 @@ async function navTo(tab) {
     showScreen('screen-my-profile');
     await renderMyProfile();
   } else if (tab === 'leaderboard') {
+    if (state.role === 'client') {
+      showToast('🔒 Лидерборд доступен только монтажёрам');
+      return;
+    }
     showScreen('screen-leaderboard');
     await renderLeaderboard();
   }
