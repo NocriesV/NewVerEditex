@@ -1337,16 +1337,12 @@ async function initApp() {
   if (tg) { tg.ready(); tg.expand(); }
 
   const tgUserRaw = tg?.initDataUnsafe?.user;
-  if (tgUserRaw) {
+  if (tgUserRaw && /^\d+$/.test(String(tgUserRaw.id || ''))) {
     state.tgUser = tgUserRaw;
     dbg('TG пользователь: ' + tgUserRaw.id);
   } else {
-    let stored = null;
-    try { stored = localStorage.getItem('_editex_uid'); } catch(e) {}
-    const uid = stored || crypto.randomUUID();
-    try { if (!stored) localStorage.setItem('_editex_uid', uid); } catch(e) {}
-    state.tgUser = { id: uid, first_name: '', username: '' };
-    dbg('Браузер ID: ' + uid);
+    showLoadError('Открывайте приложение только внутри Telegram WebApp.<br>Запуск из браузера отключён по соображениям безопасности.');
+    return;
   }
 
   // Step 1: ping supabase
@@ -1445,6 +1441,10 @@ async function submitAppeal() {
 // ============ USER MANAGEMENT ============
 async function loadOrCreateUser() {
   const telegramId = String(state.tgUser.id);
+  if (!/^\d+$/.test(telegramId)) {
+    showLoadError('Некорректный Telegram ID. Перезапустите mini app в Telegram.');
+    return;
+  }
 
   // 1. Try to find existing user
   let users = null;
