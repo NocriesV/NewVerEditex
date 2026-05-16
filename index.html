@@ -1111,8 +1111,48 @@ function showLoadError(msg) {
       <div style="font-size:48px;margin-bottom:20px;">⚠️</div>
       <div class="display-title" style="font-size:18px;margin-bottom:12px;color:#ff5050;">Ошибка запуска</div>
       <div style="font-size:13px;color:var(--muted2);line-height:1.6;margin-bottom:28px;">${msg}</div>
+      <button class="btn btn-secondary" style="margin-bottom:10px;" onclick="showAppealModal()">Подать апелляцию</button>
       <button class="btn btn-primary" onclick="location.reload()">🔄 Перезапустить</button>
     </div>`;
+}
+
+function showAppealModal() {
+  openModal(`
+    <div class="display-title" style="font-size:16px;margin-bottom:10px;">Апелляция по бану</div>
+    <p style="font-size:12px;color:var(--muted2);line-height:1.5;margin-bottom:12px;">
+      Опишите ситуацию, и администратор рассмотрит заявку.
+    </p>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Текст апелляции *</label>
+        <textarea class="input" rows="4" id="appeal-text" placeholder="Почему бан нужно пересмотреть..."></textarea>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="submitAppeal()">Отправить апелляцию</button>
+  `);
+}
+
+async function submitAppeal() {
+  const text = (document.getElementById('appeal-text')?.value || '').trim();
+  if (!text) { showToast('⚠️ Опишите апелляцию'); return; }
+  try {
+    await sb.insert('moderation_logs', {
+      admin_user_id: state.user?.id || null,
+      action: 'appeal_create',
+      target_user_id: state.user?.id || null,
+      target_order_id: null,
+      reason: text,
+      metadata: {
+        telegram_id: String(state.tgUser?.id || ''),
+        tg_username: state.tgUser?.username || null,
+        source: 'banned_screen'
+      }
+    });
+    document.getElementById('modal').classList.remove('show');
+    showToast('✅ Апелляция отправлена', 'success');
+  } catch (e) {
+    showToast('❌ Не удалось отправить апелляцию');
+  }
 }
 
 // ============ USER MANAGEMENT ============
@@ -2295,10 +2335,32 @@ async function renderAdminPanel() {
   const root = document.getElementById('admin-content');
   root.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
   try {
-    const users = await sb.select('users', 'order=created_at.desc&limit=50');
-    const orders = await sb.select('orders', 'order=created_at.desc&limit=50');
+    const users = await sb.select('users', 'order=created_at.desc&limit=200');
+    const orders = await sb.select('orders', 'order=created_at.desc&limit=200');
+    const appeals = await sb.select('moderation_logs', 'action=eq.appeal_create&order=created_at.desc&limit=200');
 
-    const usersHtml = (users || []).map(u => {
+    const currentTab = window._adminTab || 'accounts';
+    const q = (window._adminSearch || '').trim().toLowerCase();
+
+    const tabBar = `
+      <div style="position:sticky;top:0;z-index:6;background:rgba(13,13,15,0.95);backdrop-filter:blur(8px);padding:12px 20px 10px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">
+          <div class="chip ${currentTab === 'accounts' ? 'active' : ''}" onclick="setAdminTab('accounts')">Аккаунты</div>
+          <div class="chip ${currentTab === 'orders' ? 'active' : ''}" onclick="setAdminTab('orders')">Заказы</div>
+          <div class="chip ${currentTab === 'appeals' ? 'active' : ''}" onclick="setAdminTab('appeals')">Апелляции</div>
+        </div>
+        <div style="margin-top:10px;">
+          <input class="input" id="admin-search" placeholder="Поиск..." value="${escHtml(window._adminSearch || '')}" oninput="setAdminSearch(this.value)">
+        </div>
+      </div>
+    `;
+
+    const usersFiltered = (users || []).filter(u => {
+      if (!q) return true;
+      const raw = `${u.username || ''} ${u.tg_username || ''} ${u.telegram_id || ''} ${u.id || ''}`.toLowerCase();
+      return raw.includes(q);
+    });
+    const usersHtml = usersFiltered.map(u => {
       const name = u.username || u.tg_username || `ID ${String(u.id).slice(0, 6)}`;
       const role = u.role_v2 || u.role || '—';
       const banned = !!u.is_banned;
@@ -2319,7 +2381,12 @@ async function renderAdminPanel() {
         </div>`;
     }).join('') || '<div class="empty-state"><div class="empty-state-title">Пользователи не найдены</div></div>';
 
-    const ordersHtml = (orders || []).map(o => {
+    const ordersFiltered = (orders || []).filter(o => {
+      if (!q) return true;
+      const raw = `${o.title || ''} ${o.description || ''} ${o.id || ''}`.toLowerCase();
+      return raw.includes(q);
+    });
+    const ordersHtml = ordersFiltered.map(o => {
       const deleted = !!o.is_deleted;
       const title = o.title || 'Без названия';
       return `
@@ -2339,17 +2406,39 @@ async function renderAdminPanel() {
         </div>`;
     }).join('') || '<div class="empty-state"><div class="empty-state-title">Заказы не найдены</div></div>';
 
-    root.innerHTML = `
-      <div class="section-title" style="margin-top:16px;">Пользователи</div>
-      ${usersHtml}
-      <div class="section-title">Заказы</div>
-      ${ordersHtml}
-      <div class="scroll-pad"></div>
-    `;
+    const appealsFiltered = (appeals || []).filter(a => {
+      if (!q) return true;
+      const raw = `${a.reason || ''} ${a.target_user_id || ''} ${JSON.stringify(a.metadata || {})}`.toLowerCase();
+      return raw.includes(q);
+    });
+    const appealsHtml = appealsFiltered.map(a => `
+      <div class="card" style="margin:0 20px 10px;">
+        <div style="font-size:11px;color:var(--muted2);margin-bottom:6px;">${new Date(a.created_at).toLocaleString('ru-RU')}</div>
+        <div style="font-size:13px;line-height:1.5;margin-bottom:8px;">${escHtml(a.reason || 'Без текста')}</div>
+        <div style="font-size:11px;color:var(--muted2);">user: ${escHtml(String(a.target_user_id || a.metadata?.telegram_id || '—'))}</div>
+      </div>
+    `).join('') || '<div class="empty-state"><div class="empty-state-title">Апелляций нет</div></div>';
+
+    let content = '';
+    if (currentTab === 'accounts') content = `<div class="section-title" style="margin-top:14px;">Пользователи</div>${usersHtml}`;
+    if (currentTab === 'orders') content = `<div class="section-title" style="margin-top:14px;">Заказы</div>${ordersHtml}`;
+    if (currentTab === 'appeals') content = `<div class="section-title" style="margin-top:14px;">Апелляции</div>${appealsHtml}`;
+
+    root.innerHTML = `${tabBar}${content}<div class="scroll-pad"></div>`;
   } catch (e) {
     console.error(e);
     root.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка админ-панели</div></div>';
   }
+}
+
+function setAdminTab(tab) {
+  window._adminTab = tab;
+  renderAdminPanel();
+}
+
+function setAdminSearch(value) {
+  window._adminSearch = value || '';
+  renderAdminPanel();
 }
 
 async function adminBanUser(userId) {
