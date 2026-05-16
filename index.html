@@ -1761,21 +1761,55 @@ function renderMonterCard(user, idx) {
   const streakTier = getStreakTier(streak);
   const streakFire = renderStreakFire(streak);
   const streakTheme = streakTier === 'violet'
-    ? { txt: '#e8d4ff', bg: 'rgba(158,103,255,0.18)', br: 'rgba(194,152,255,0.45)', card: 'rgba(158,103,255,0.22)' }
+    ? {
+        txt: '#f0dcff',
+        bg: 'rgba(158,103,255,0.2)',
+        br: 'rgba(194,152,255,0.55)',
+        cardGlow: 'rgba(158,103,255,0.32)',
+        cardBorder: 'rgba(198,158,255,0.65)',
+        cardBg: 'radial-gradient(130% 120% at 92% 12%, rgba(170,106,255,0.34) 0%, rgba(117,69,207,0.18) 34%, rgba(16,20,34,0.94) 74%), linear-gradient(165deg, rgba(20,16,40,0.95), rgba(13,18,33,0.97))',
+        hotBg: 'linear-gradient(145deg, rgba(172,108,255,0.28), rgba(115,69,207,0.25))'
+      }
     : streakTier === 'orange'
-      ? { txt: '#ffd1b2', bg: 'rgba(255,95,32,0.18)', br: 'rgba(255,145,98,0.42)', card: 'rgba(255,108,56,0.2)' }
+      ? {
+          txt: '#ffd8bf',
+          bg: 'rgba(255,95,32,0.2)',
+          br: 'rgba(255,145,98,0.52)',
+          cardGlow: 'rgba(255,108,56,0.3)',
+          cardBorder: 'rgba(255,150,92,0.62)',
+          cardBg: 'radial-gradient(130% 120% at 92% 12%, rgba(255,131,69,0.34) 0%, rgba(214,83,26,0.2) 34%, rgba(16,20,34,0.94) 74%), linear-gradient(165deg, rgba(38,18,12,0.95), rgba(15,19,33,0.97))',
+          hotBg: 'linear-gradient(145deg, rgba(255,110,41,0.28), rgba(193,68,21,0.25))'
+        }
       : streakTier === 'gold'
-        ? { txt: '#ffe6a3', bg: 'rgba(255,186,32,0.14)', br: 'rgba(255,202,94,0.28)', card: 'rgba(255,180,24,0.18)' }
-        : { txt: '#ffe6a3', bg: 'rgba(255,186,32,0.10)', br: 'rgba(255,202,94,0.2)', card: 'rgba(255,180,24,0.1)' };
+        ? {
+            txt: '#ffe8a8',
+            bg: 'rgba(255,186,32,0.16)',
+            br: 'rgba(255,202,94,0.46)',
+            cardGlow: 'rgba(255,180,24,0.26)',
+            cardBorder: 'rgba(255,211,102,0.55)',
+            cardBg: 'radial-gradient(130% 120% at 92% 12%, rgba(255,214,98,0.3) 0%, rgba(214,164,40,0.18) 34%, rgba(16,20,34,0.94) 74%), linear-gradient(165deg, rgba(39,32,13,0.95), rgba(15,19,33,0.97))',
+            hotBg: 'linear-gradient(145deg, rgba(255,204,74,0.26), rgba(205,145,16,0.24))'
+          }
+        : {
+            txt: '#ffe6a3',
+            bg: 'rgba(255,186,32,0.10)',
+            br: 'rgba(255,202,94,0.2)',
+            cardGlow: 'rgba(255,180,24,0.1)',
+            cardBorder: 'rgba(180,198,255,0.22)',
+            cardBg: '',
+            hotBg: 'rgba(255,196,51,0.16)'
+          };
   const streakText = streak > 0
     ? `<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:${streakTheme.txt};margin-top:6px;background:${streakTheme.bg};border:1px solid ${streakTheme.br};padding:4px 8px;border-radius:999px;">
          <span>🔥</span><span>Стрик: ${streak} дн.</span>
        </div>`
     : '';
   const streakCardClass = streak >= 5 ? 'streak-card' : '';
-  const streakCardStyle = streak >= 5 ? `border-color:${streakTheme.br};box-shadow:0 12px 32px ${streakTheme.card}, inset 0 0 0 1px rgba(255,255,255,0.1);` : '';
+  const streakCardStyle = streak >= 5
+    ? `border-color:${streakTheme.cardBorder};background:${streakTheme.cardBg};box-shadow:0 16px 42px ${streakTheme.cardGlow}, inset 0 0 0 1px rgba(255,255,255,0.14);`
+    : '';
   const streakBadge = streak > 0
-    ? `<div style="position:absolute;right:10px;bottom:10px;background:${streakTheme.bg};border:1px solid ${streakTheme.br};padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:${streakTheme.txt};backdrop-filter:blur(4px);z-index:2;">HOT STREAK</div>`
+    ? `<div style="position:absolute;right:10px;bottom:10px;background:${streakTheme.hotBg};border:1px solid ${streakTheme.br};padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:${streakTheme.txt};backdrop-filter:blur(4px);z-index:2;">HOT STREAK</div>`
     : '';
   const focusBadge = user._focusBadge
     ? `<div style="position:absolute;right:10px;bottom:${streak > 0 ? '40px' : '10px'};background:rgba(73,211,255,0.16);border:1px solid rgba(125,233,255,0.45);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#9cefff;backdrop-filter:blur(4px);z-index:2;">🚀 В ФОКУСЕ</div>`
