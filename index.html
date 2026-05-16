@@ -1072,6 +1072,7 @@ const state = {
 };
 
 window._leaderboardPeriod = 'all';
+const ADMIN_TELEGRAM_IDS = ['7847785699', '6288239521'];
 
 function getEloRankTitle(elo) {
   if (elo >= 1700) return 'Легенда';
@@ -1128,11 +1129,11 @@ function renderLeaderboardItem(user, idx) {
   const initials = name.slice(0, 2).toUpperCase();
   const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
   const medalStyle = idx === 0
-    ? 'background:linear-gradient(135deg, rgba(255,215,0,0.20), rgba(255,184,28,0.08));border-color:rgba(255,215,0,0.45);'
+    ? 'background:radial-gradient(120% 120% at 10% 10%, rgba(255,240,122,0.34) 0%, rgba(255,205,64,0.22) 35%, rgba(154,92,10,0.10) 100%);border-color:rgba(255,220,96,0.75);box-shadow:0 14px 40px rgba(255,196,35,0.22), inset 0 0 0 1px rgba(255,255,255,0.12);'
     : idx === 1
-      ? 'background:linear-gradient(135deg, rgba(192,192,192,0.22), rgba(148,163,184,0.08));border-color:rgba(192,192,192,0.45);'
+      ? 'background:radial-gradient(120% 120% at 10% 10%, rgba(242,247,255,0.30) 0%, rgba(191,203,222,0.22) 35%, rgba(80,93,117,0.10) 100%);border-color:rgba(206,219,241,0.70);box-shadow:0 14px 34px rgba(159,175,199,0.18), inset 0 0 0 1px rgba(255,255,255,0.10);'
       : idx === 2
-        ? 'background:linear-gradient(135deg, rgba(205,127,50,0.22), rgba(180,83,9,0.08));border-color:rgba(205,127,50,0.45);'
+        ? 'background:radial-gradient(120% 120% at 10% 10%, rgba(242,186,131,0.33) 0%, rgba(198,113,62,0.24) 35%, rgba(95,49,24,0.12) 100%);border-color:rgba(226,148,94,0.72);box-shadow:0 14px 34px rgba(173,92,47,0.20), inset 0 0 0 1px rgba(255,255,255,0.10);'
         : '';
   return `
     <div class="card" style="margin:0 20px 10px;${medalStyle}">
@@ -2516,7 +2517,9 @@ async function renderMyProfile() {
 
 function isAdminUser() {
   const role = state.user?.role_v2 || state.user?.role || state.role;
-  return role === 'admin';
+  if (role === 'admin') return true;
+  const tgId = String(state.tgUser?.id || state.user?.telegram_id || '');
+  return ADMIN_TELEGRAM_IDS.includes(tgId);
 }
 
 function adminGuard() {
