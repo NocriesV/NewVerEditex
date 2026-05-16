@@ -1135,11 +1135,12 @@ function showAppealModal() {
 async function submitAppeal() {
   const text = (document.getElementById('appeal-text')?.value || '').trim();
   if (!text) { showToast('⚠️ Опишите апелляцию'); return; }
+  if (!state.user?.id) { showToast('⚠️ Нет профиля пользователя'); return; }
   try {
     await sb.insert('moderation_logs', {
-      admin_user_id: state.user?.id || null,
+      admin_user_id: state.user.id,
       action: 'appeal_create',
-      target_user_id: state.user?.id || null,
+      target_user_id: state.user.id,
       target_order_id: null,
       reason: text,
       metadata: {
@@ -1151,7 +1152,7 @@ async function submitAppeal() {
     document.getElementById('modal').classList.remove('show');
     showToast('✅ Апелляция отправлена', 'success');
   } catch (e) {
-    showToast('❌ Не удалось отправить апелляцию');
+    showToast('❌ ' + sbError(e).slice(0, 120));
   }
 }
 
@@ -1620,6 +1621,7 @@ function renderOrderCard(order, proposalCount, idx) {
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 9.5C2 8.1 3.3 7 5 7H7C8.7 7 10 8.1 10 9.5" stroke="#6b6b72" stroke-width="1.2" stroke-linecap="round"/><circle cx="6" cy="4" r="2" stroke="#6b6b72" stroke-width="1.2"/></svg>
             ${proposalCount} ${declension(proposalCount, ['отклик', 'отклика', 'откликов'])}
           </div>
+          <div class="job-meta-item">ID: ${escHtml(String(order.id).slice(0, 8))}</div>
         </div>
         ${statusTag}
       </div>
@@ -1684,6 +1686,9 @@ async function openJobDetail(orderId) {
         </div>
         ${!isClientRole && clientUsername ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openTelegramUser('${clientUsername}')">Написать</button>` : ''}
       </div>`;
+    document.getElementById('job-detail-content').insertAdjacentHTML('beforeend', `
+      <div style="margin-top:10px;font-size:11px;color:var(--muted2);">ID заказа: ${escHtml(String(order.id))}</div>
+    `);
 
     // Show appropriate section
     // Клиент видит отклики только если это ЕГО заказ И он в роли клиента
@@ -2069,6 +2074,7 @@ function renderMyOrderCard(order, idx, faded = false) {
         <div class="job-meta">
           ${budget ? `<div class="job-meta-item">${budget}</div>` : ''}
           <div class="job-meta-item">${date}</div>
+          <div class="job-meta-item">ID: ${escHtml(String(order.id).slice(0, 8))}</div>
         </div>
       </div>
     </div>`;
@@ -2144,6 +2150,7 @@ async function loadMyResponses() {
             <div class="job-title">${escHtml(title)}</div>
             ${statusTag}
           </div>
+          <div style="font-size:11px;color:var(--muted2);margin:4px 0 8px;">ID заказа: ${escHtml(String(p.order_id).slice(0, 8))}</div>
           ${price ? `<div style="font-size:12px;color:var(--muted2);margin:6px 0 10px;">Ваша цена: <b style="color:var(--text);">${price}</b></div>` : ''}
           ${client.tg_username ? `<button class="btn ${p.status === 'accepted' ? 'btn-ghost' : 'btn-secondary'} btn-sm" onclick="event.stopPropagation(); openTelegramUser('${client.tg_username}')">
             ${p.status === 'accepted' ? 'Перейти в чат' : 'Написать заказчику'}
@@ -2347,6 +2354,8 @@ async function renderAdminPanel() {
         <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">
           <div class="chip ${currentTab === 'accounts' ? 'active' : ''}" onclick="setAdminTab('accounts')">Аккаунты</div>
           <div class="chip ${currentTab === 'orders' ? 'active' : ''}" onclick="setAdminTab('orders')">Заказы</div>
+          <div class="chip ${currentTab === 'banned_accounts' ? 'active' : ''}" onclick="setAdminTab('banned_accounts')">Забаненные</div>
+          <div class="chip ${currentTab === 'banned_orders' ? 'active' : ''}" onclick="setAdminTab('banned_orders')">Скрытые</div>
           <div class="chip ${currentTab === 'appeals' ? 'active' : ''}" onclick="setAdminTab('appeals')">Апелляции</div>
         </div>
         <div style="margin-top:10px;">
@@ -2419,9 +2428,31 @@ async function renderAdminPanel() {
       </div>
     `).join('') || '<div class="empty-state"><div class="empty-state-title">Апелляций нет</div></div>';
 
+    const bannedUsersHtml = usersFiltered.filter(u => !!u.is_banned).map(u => {
+      const name = u.username || u.tg_username || `ID ${String(u.id).slice(0, 6)}`;
+      return `
+        <div class="card" style="margin:0 20px 10px;">
+          <div style="font-weight:600;font-size:13px;">${escHtml(name)}</div>
+          <div style="font-size:11px;color:var(--muted2);margin-top:4px;">tg: ${escHtml(String(u.telegram_id || '—'))}</div>
+          <div style="font-size:11px;color:#ff8a8a;margin-top:4px;">Причина: ${escHtml(u.ban_reason || 'Не указана')}</div>
+          <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="adminUnbanUser('${u.id}')">Разбанить</button>
+        </div>`;
+    }).join('') || '<div class="empty-state"><div class="empty-state-title">Забаненных нет</div></div>';
+
+    const bannedOrdersHtml = ordersFiltered.filter(o => !!o.is_deleted).map(o => `
+      <div class="card" style="margin:0 20px 10px;">
+        <div style="font-weight:600;font-size:13px;">${escHtml(o.title || 'Без названия')}</div>
+        <div style="font-size:11px;color:var(--muted2);margin-top:4px;">ID: ${escHtml(String(o.id))}</div>
+        <div style="font-size:11px;color:#ffb280;margin-top:4px;">Причина: ${escHtml(o.deleted_reason || 'Не указана')}</div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="adminRestoreOrder('${o.id}')">Восстановить</button>
+      </div>
+    `).join('') || '<div class="empty-state"><div class="empty-state-title">Скрытых заказов нет</div></div>';
+
     let content = '';
     if (currentTab === 'accounts') content = `<div class="section-title" style="margin-top:14px;">Пользователи</div>${usersHtml}`;
     if (currentTab === 'orders') content = `<div class="section-title" style="margin-top:14px;">Заказы</div>${ordersHtml}`;
+    if (currentTab === 'banned_accounts') content = `<div class="section-title" style="margin-top:14px;">Забаненные аккаунты</div>${bannedUsersHtml}`;
+    if (currentTab === 'banned_orders') content = `<div class="section-title" style="margin-top:14px;">Скрытые заказы</div>${bannedOrdersHtml}`;
     if (currentTab === 'appeals') content = `<div class="section-title" style="margin-top:14px;">Апелляции</div>${appealsHtml}`;
 
     root.innerHTML = `${tabBar}${content}<div class="scroll-pad"></div>`;
