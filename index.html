@@ -1081,6 +1081,83 @@ function getEloRankTitle(elo) {
   return 'Новичок';
 }
 
+function getStreakFireSize(streakDays) {
+  const day = Math.max(1, Number(streakDays || 0));
+  if (day <= 1) return 24;
+  if (day === 2) return 28;
+  if (day === 3) return 32;
+  if (day === 4) return 36;
+  return 40;
+}
+
+function getStreakFireGradient(streakDays) {
+  const day = Number(streakDays || 0);
+  if (day >= 30) return 'linear-gradient(145deg, #8b5cf6, #7c3aed 45%, #c084fc)';
+  if (day >= 10) return 'linear-gradient(145deg, #ff7a18, #ff3d00 45%, #ff8f5a)';
+  return 'linear-gradient(145deg, #ffd84d, #ffb800 50%, #ffe38a)';
+}
+
+function renderStreakFire(streakDays) {
+  const day = Number(streakDays || 0);
+  if (day <= 0) return '';
+  const size = getStreakFireSize(day);
+  const gradient = getStreakFireGradient(day);
+  return `
+    <div title="Стрик: ${day} дн." style="width:${size}px;height:${size}px;border-radius:50%;background:${gradient};display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.22);font-family:var(--font-display);font-weight:700;font-size:${Math.max(10, Math.round(size * 0.34))}px;color:#111;">
+      ${day}
+    </div>`;
+}
+
+async function updateUserStreakOnLogin() {
+  try {
+    if (!state.user?.id) return;
+    const role = state.user?.role_v2 || state.user?.role;
+    if (!(role === 'monter' || role === 'editor')) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const monthKey = today.slice(0, 7);
+    const prevDate = state.user.streak_last_date || null;
+    const current = Number(state.user.streak_days || 0);
+    let restoresUsed = Number(state.user.streak_restores_used || 0);
+    let restoreMonth = state.user.streak_restore_month || monthKey;
+
+    if (restoreMonth !== monthKey) {
+      restoresUsed = 0;
+      restoreMonth = monthKey;
+    }
+
+    if (prevDate === today) return;
+
+    let next = 1;
+    if (prevDate) {
+      const prev = new Date(prevDate + 'T00:00:00Z').getTime();
+      const now = new Date(today + 'T00:00:00Z').getTime();
+      const diffDays = Math.round((now - prev) / 86400000);
+      if (diffDays === 1) {
+        next = current + 1;
+      } else if (diffDays > 1 && restoresUsed < 2) {
+        restoresUsed += 1;
+        next = current + 1;
+      } else {
+        next = 1;
+      }
+    }
+
+    await sb.update('users', {
+      streak_days: next,
+      streak_last_date: today,
+      streak_restores_used: restoresUsed,
+      streak_restore_month: restoreMonth
+    }, `id=eq.${encodeURIComponent(state.user.id)}`);
+    state.user.streak_days = next;
+    state.user.streak_last_date = today;
+    state.user.streak_restores_used = restoresUsed;
+    state.user.streak_restore_month = restoreMonth;
+  } catch (e) {
+    console.error('streak update error', e);
+  }
+}
+
 function getEloByUser(user) {
   const raw = user?.elo_rating;
   return Number.isFinite(Number(raw)) ? Number(raw) : 1000;
@@ -1326,6 +1403,7 @@ async function loadOrCreateUser() {
     state.user = users[0];
     if (state.user?.role === 'editor') state.user.role = 'monter';
     state.role = state.user.role_v2 || state.user.role || null;
+    await updateUserStreakOnLogin();
     if (state.user?.is_banned) {
       showLoadError('Ваш аккаунт заблокирован.<br>Обратитесь к администратору.');
       return;
@@ -1532,6 +1610,9 @@ function renderMonterCard(user, idx) {
     : '<span class="tag tag-gray">Монтаж</span>';
 
   const exp = user.experience ? `<span style="font-size:11px;color:var(--muted2);">📅 ${escHtml(user.experience)}</span>` : '';
+  const streak = Number(user.streak_days || 0);
+  const streakFire = renderStreakFire(streak);
+  const streakText = streak > 0 ? `<div style="font-size:11px;color:var(--muted2);margin-top:4px;">🔥 Стрик: ${streak} дн.</div>` : '';
 
   return `
     <div class="editor-card fade-up" style="animation-delay:${idx * 0.05}s" onclick="viewMonterProfile('${user.id}')">
@@ -1543,9 +1624,11 @@ function renderMonterCard(user, idx) {
           <div class="editor-stats" style="margin-top:4px;">
             <div class="editor-price">Открыт к заказам</div>
           </div>
+          ${streakText}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           <div class="status-dot"></div>
+          ${streakFire}
         </div>
       </div>
       <div class="editor-tags" style="margin-top:10px;">${tagsHtml}</div>
@@ -2398,6 +2481,10 @@ async function renderMyProfile() {
   const initials = name.slice(0, 2).toUpperCase();
   const roleLabel = isEditor ? 'Монтажёр' : 'Заказчик';
   const tgHandle = state.user?.tg_username || state.tgUser?.username || '';
+  const myStreak = Number(state.user?.streak_days || 0);
+  const myRestoresUsed = Number(state.user?.streak_restores_used || 0);
+  const myRestoresLeft = Math.max(0, 2 - myRestoresUsed);
+  let myTopPlace = null;
 
   // Load portfolio if editor
   let portfolio = [];
@@ -2420,6 +2507,19 @@ async function renderMyProfile() {
         state.role = fresh[0].role || state.role;
       }
     } catch(e) {}
+  }
+
+  if (isEditor) {
+    try {
+      const users = await sb.select('users', `role=in.(editor,monter)&is_banned=eq.false&order=created_at.desc&limit=300`);
+      const sorted = (users || []).sort((a, b) => {
+        const eloDiff = getEloByUser(b) - getEloByUser(a);
+        if (eloDiff !== 0) return eloDiff;
+        return Number(b.completed_orders || 0) - Number(a.completed_orders || 0);
+      });
+      const idx = sorted.findIndex(u => String(u.id) === String(state.user.id));
+      if (idx >= 0) myTopPlace = idx + 1;
+    } catch (e) {}
   }
 
   const specs = (state.user?.specialty || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -2473,6 +2573,17 @@ async function renderMyProfile() {
       <div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:6px 14px;margin-top:8px;">
         <span style="font-size:12px;color:var(--muted);">Рейтинга пока нет — выполните заказы</span>
       </div>`}
+      ${isEditor ? `
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
+        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,184,0,0.12);border:1px solid rgba(255,184,0,0.3);border-radius:20px;padding:6px 12px;">
+          <span style="font-size:14px;">🔥</span><span style="font-size:12px;font-weight:600;">Стрик: ${myStreak} дн.</span>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.3);border-radius:20px;padding:6px 12px;">
+          <span style="font-size:14px;">🏆</span><span style="font-size:12px;font-weight:600;">Место: ${myTopPlace ? '#' + myTopPlace : '—'}</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted2);margin-top:8px;">Восстановления стрика в месяце: ${myRestoresLeft}/2</div>
+      ` : ''}
     </div>
 
     ${portfolioSection}
@@ -2602,12 +2713,14 @@ function renderAdminPanelView() {
       const name = u.username || u.tg_username || `ID ${String(u.id).slice(0, 6)}`;
       const role = u.role_v2 || u.role || '—';
       const banned = !!u.is_banned;
+      const streak = Number(u.streak_days || 0);
       return `
         <div class="card" style="margin:0 20px 10px;">
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
             <div>
               <div style="font-weight:600;font-size:13px;">${escHtml(name)}</div>
               <div style="font-size:11px;color:var(--muted2);margin-top:3px;">role: ${escHtml(String(role))} • tg: ${escHtml(String(u.telegram_id || '—'))}</div>
+              <div style="font-size:11px;color:var(--muted2);margin-top:3px;">streak: ${streak} дн.</div>
             </div>
             <span class="tag ${banned ? 'tag-orange' : 'tag-green'}">${banned ? 'Бан' : 'Активен'}</span>
           </div>
@@ -2615,6 +2728,7 @@ function renderAdminPanelView() {
             ${banned
               ? `<button class="btn btn-secondary btn-sm" onclick="adminUnbanUser('${u.id}')">Разбанить</button>`
               : `<button class="btn btn-danger btn-sm" onclick="adminBanUser('${u.id}')">Забанить</button>`}
+            <button class="btn btn-ghost btn-sm" onclick="adminGrantStreak('${u.id}', ${streak})">Выдать стрик</button>
           </div>
         </div>`;
     }).join('') || '<div class="empty-state"><div class="empty-state-title">Пользователи не найдены</div></div>';
@@ -2760,6 +2874,25 @@ async function rejectCancelClaim(logId) {
     renderAdminPanelView();
   } catch (e) {
     showToast('❌ ' + sbError(e).slice(0, 120));
+  }
+}
+
+async function adminGrantStreak(userId, currentValue = 0) {
+  if (!adminGuard()) return;
+  const input = prompt('Введите стрик в днях:', String(currentValue || 0));
+  if (input === null) return;
+  const days = Math.max(0, parseInt(input, 10) || 0);
+  try {
+    await sb.update('users', {
+      streak_days: days,
+      streak_last_date: new Date().toISOString().slice(0, 10)
+    }, `id=eq.${encodeURIComponent(userId)}`);
+    await adminLog('grant_streak', userId, null, `Выдан стрик ${days}`, { streak_days: days });
+    showToast('✅ Стрик обновлен', 'success');
+    await loadAdminData();
+    renderAdminPanelView();
+  } catch (e) {
+    showToast('❌ ' + sbError(e).slice(0, 100));
   }
 }
 
