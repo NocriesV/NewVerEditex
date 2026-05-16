@@ -1745,10 +1745,10 @@ function renderMonterCard(user, idx) {
     : '';
   const streakCardClass = streak > 0 ? 'streak-card' : '';
   const streakBadge = streak > 0
-    ? `<div style="position:absolute;top:10px;right:10px;background:rgba(255,196,51,0.16);border:1px solid rgba(255,214,112,0.34);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#ffe39d;backdrop-filter:blur(4px);">HOT STREAK</div>`
+    ? `<div style="position:absolute;right:10px;bottom:10px;background:rgba(255,196,51,0.16);border:1px solid rgba(255,214,112,0.34);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#ffe39d;backdrop-filter:blur(4px);z-index:2;">HOT STREAK</div>`
     : '';
   const focusBadge = user._focusBadge
-    ? `<div style="position:absolute;top:10px;left:10px;background:rgba(73,211,255,0.16);border:1px solid rgba(125,233,255,0.45);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#9cefff;backdrop-filter:blur(4px);">🚀 В ФОКУСЕ</div>`
+    ? `<div style="position:absolute;right:10px;bottom:${streak > 0 ? '40px' : '10px'};background:rgba(73,211,255,0.16);border:1px solid rgba(125,233,255,0.45);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#9cefff;backdrop-filter:blur(4px);z-index:2;">🚀 В ФОКУСЕ</div>`
     : '';
 
   return `
@@ -2030,13 +2030,17 @@ async function openJobDetail(orderId) {
     // Get client info
     let clientName = 'Заказчик';
     let clientUsername = '';
+    let clientPositiveReviews = 0;
     try {
       const clients = await sb.select('users', `id=eq.${order.client_id}&limit=1`);
       if (clients?.[0]) {
         clientName = clients[0].username || 'Заказчик';
         clientUsername = clients[0].tg_username || '';
       }
+      const positiveRows = await sb.select('reviews', `reviewee_id=eq.${order.client_id}&rating=gte.4&deal_happened=eq.true&select=id`);
+      clientPositiveReviews = positiveRows ? positiveRows.length : 0;
     } catch(e) {}
+    const trustBadge = getClientTrustByPositive(clientPositiveReviews);
 
     const titleShort = order.title.length > 22 ? order.title.slice(0, 22) + '…' : order.title;
     document.getElementById('job-detail-header').textContent = titleShort;
@@ -2068,6 +2072,10 @@ async function openJobDetail(orderId) {
         <div style="flex:1;">
           <div style="font-size:13px;font-weight:600;">${escHtml(clientName)}</div>
           <div style="font-size:11px;color:var(--muted);">Заказчик — нажмите для профиля</div>
+          <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;">
+            <span class="tag ${trustBadge.cls}" style="font-size:10px;">${trustBadge.text}</span>
+            <span class="tag tag-gray" style="font-size:10px;">Положительных: ${clientPositiveReviews}</span>
+          </div>
         </div>
         ${!isClientRole && clientUsername ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openTelegramUser('${clientUsername}')">Написать</button>` : ''}
       </div>`;
@@ -2426,12 +2434,16 @@ async function viewClientProfile(clientId) {
     // Count successful deals as client
     let successDeals = 0;
     let totalReviewsCount = 0;
+    let positiveReviewsCount = 0;
     try {
       const r = await sb.select('reviews', `reviewee_id=eq.${clientId}&deal_happened=eq.true&select=id`);
       successDeals = r ? r.length : 0;
       const rr = await sb.select('reviews', `reviewee_id=eq.${clientId}&select=id`);
       totalReviewsCount = rr ? rr.length : 0;
+      const pr = await sb.select('reviews', `reviewee_id=eq.${clientId}&rating=gte.4&deal_happened=eq.true&select=id`);
+      positiveReviewsCount = pr ? pr.length : 0;
     } catch(e) {}
+    const trustBadge = getClientTrustByPositive(positiveReviewsCount);
 
     const name = user.username || 'Заказчик';
     const initials = name.slice(0,2).toUpperCase();
@@ -2447,6 +2459,10 @@ async function viewClientProfile(clientId) {
         <div style="display:flex;gap:16px;justify-content:center;margin-top:12px;">
           <div style="text-align:center;"><div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--accent);">${rating}</div><div style="font-size:11px;color:var(--muted);">Рейтинг</div></div>
           <div style="text-align:center;"><div style="font-family:var(--font-display);font-size:18px;font-weight:700;">${successDeals}</div><div style="font-size:11px;color:var(--muted);">Сделок</div></div>
+        </div>
+        <div style="margin-top:10px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;">
+          <span class="tag ${trustBadge.cls}">${trustBadge.text}</span>
+          <span class="tag tag-gray">Положительных: ${positiveReviewsCount}</span>
         </div>
       </div>
       <div style="padding:16px 20px 100px;">
@@ -3785,6 +3801,12 @@ function declension(n, forms) {
   if (n1 > 1 && n1 < 5) return forms[1];
   if (n1 === 1) return forms[0];
   return forms[2];
+}
+
+function getClientTrustByPositive(positiveCount) {
+  return Number(positiveCount || 0) >= 10
+    ? { text: '✅ Доверенный заказчик', cls: 'tag-green' }
+    : { text: '🆕 Новый заказчик', cls: 'tag-gray' };
 }
 
 function escHtml(str) {
