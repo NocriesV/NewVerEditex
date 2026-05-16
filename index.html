@@ -9,17 +9,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700&family=Onest:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0d0d0f;
-    --bg2: #141416;
-    --bg3: #1c1c1f;
-    --border: rgba(255,255,255,0.07);
-    --accent: #e8ff47;
-    --accent2: #ff6b35;
-    --text: #f0f0f0;
-    --muted: #6b6b72;
-    --muted2: #9898a0;
-    --card: #17171a;
-    --radius: 16px;
+    --bg: #07090f;
+    --bg2: #0e1220;
+    --bg3: #171c2c;
+    --border: rgba(173, 192, 255, 0.16);
+    --accent: #d6ff3f;
+    --accent2: #49d3ff;
+    --text: #f7f9ff;
+    --muted: #7f8aa8;
+    --muted2: #a6b2d3;
+    --card: #11172a;
+    --radius: 18px;
     --font-display: 'Unbounded', sans-serif;
     --font-body: 'Onest', sans-serif;
   }
@@ -27,7 +27,10 @@
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
   body {
-    background: var(--bg);
+    background:
+      radial-gradient(140% 100% at 10% 0%, #1a2452 0%, rgba(12, 18, 41, 0.5) 30%, transparent 60%),
+      radial-gradient(120% 120% at 100% 0%, rgba(36, 164, 255, 0.28) 0%, transparent 45%),
+      var(--bg);
     color: var(--text);
     font-family: var(--font-body);
     min-height: 100vh;
@@ -43,7 +46,9 @@
     margin: 0 auto;
     position: relative;
     overflow: hidden;
-    background: var(--bg);
+    background: linear-gradient(180deg, rgba(10, 14, 28, 0.88) 0%, rgba(8, 11, 22, 0.96) 100%);
+    border-left: 1px solid rgba(151, 173, 243, 0.12);
+    border-right: 1px solid rgba(151, 173, 243, 0.12);
   }
 
   /* SCREENS */
@@ -75,9 +80,9 @@
     transform: translateX(-50%);
     width: 100%;
     max-width: 480px;
-    background: rgba(13,13,15,0.95);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
+    background: rgba(12, 16, 31, 0.82);
+    backdrop-filter: blur(24px);
+    border-top: 1px solid rgba(175, 197, 255, 0.2);
     padding: 10px 0 max(20px, env(safe-area-inset-bottom));
     display: flex;
     z-index: 100;
@@ -128,19 +133,20 @@
   .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
   .btn-primary { background: var(--accent); color: #000; }
-  .btn-primary:hover { background: #d4e83f; }
-  .btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
-  .btn-ghost { background: transparent; color: var(--accent); border: 1px solid rgba(232,255,71,0.3); }
+  .btn-primary:hover { background: #ecff73; }
+  .btn-secondary { background: linear-gradient(180deg, #1a2137, #131a2d); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost { background: rgba(88, 209, 255, 0.08); color: #7de6ff; border: 1px solid rgba(88, 209, 255, 0.38); }
   .btn-danger { background: rgba(255,80,80,0.1); color: #ff5050; border: 1px solid rgba(255,80,80,0.2); }
   .btn-sm { padding: 8px 16px; font-size: 12px; border-radius: 10px; width: auto; }
 
   /* CARDS */
   .card {
-    background: var(--card);
-    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(20, 28, 48, 0.92), rgba(14, 20, 37, 0.96));
+    border: 1px solid rgba(167, 189, 255, 0.2);
     border-radius: var(--radius);
     padding: 16px;
     transition: border-color 0.15s;
+    box-shadow: 0 10px 30px rgba(6, 10, 22, 0.4);
   }
   .card:active { border-color: rgba(255,255,255,0.15); }
 
@@ -167,8 +173,8 @@
   .input-group { display: flex; flex-direction: column; gap: 6px; }
   .input-label { font-size: 12px; color: var(--muted2); font-weight: 500; }
   .input {
-    background: var(--bg3);
-    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(25, 33, 56, 0.92), rgba(18, 25, 42, 0.96));
+    border: 1px solid rgba(157, 178, 239, 0.2);
     border-radius: 12px;
     padding: 12px 14px;
     color: var(--text);
@@ -179,7 +185,7 @@
     width: 100%;
     resize: none;
   }
-  .input:focus { border-color: rgba(232,255,71,0.4); }
+  .input:focus { border-color: rgba(116, 226, 255, 0.7); box-shadow: 0 0 0 4px rgba(72, 212, 255, 0.12); }
   .input::placeholder { color: var(--muted); }
 
   /* PAGE HEADER */
@@ -190,10 +196,10 @@
     gap: 12px;
     position: sticky;
     top: 0;
-    background: rgba(13,13,15,0.9);
+    background: rgba(10, 14, 28, 0.86);
     backdrop-filter: blur(12px);
     z-index: 10;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid rgba(168, 190, 255, 0.18);
   }
   .back-btn {
     width: 36px; height: 36px;
@@ -252,8 +258,8 @@
   .dash-greeting { font-size: 12px; color: var(--muted2); margin-bottom: 2px; }
   .search-bar {
     margin: 16px 0;
-    background: var(--bg3);
-    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(26, 34, 58, 0.9), rgba(20, 27, 46, 0.96));
+    border: 1px solid rgba(157, 178, 239, 0.2);
     border-radius: 14px;
     padding: 12px 16px;
     display: flex;
@@ -272,11 +278,11 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s;
-    border: 1px solid var(--border);
-    background: var(--bg3);
+    border: 1px solid rgba(149, 172, 236, 0.22);
+    background: linear-gradient(180deg, rgba(27, 35, 58, 0.92), rgba(18, 26, 44, 0.95));
     color: var(--muted2);
   }
-  .chip.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  .chip.active { background: linear-gradient(145deg, #dfff5f, #c8ef3a); color: #0b1020; border-color: #e3ff8a; font-weight: 700; }
 
   .section-title {
     font-family: var(--font-display);
@@ -291,8 +297,8 @@
   /* EDITOR CARD */
   .editor-card {
     margin: 0 20px 12px;
-    background: var(--card);
-    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(19, 27, 46, 0.95), rgba(15, 22, 38, 0.95));
+    border: 1px solid rgba(160, 182, 245, 0.22);
     border-radius: 20px;
     padding: 16px;
     cursor: pointer;
@@ -300,6 +306,29 @@
   }
   .editor-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-1px); }
   .editor-card:active { transform: scale(0.99); }
+  .editor-card.streak-card {
+    border-color: rgba(255,184,0,0.42);
+    background:
+      radial-gradient(120% 120% at 8% 8%, rgba(255,220,120,0.16) 0%, rgba(255,184,0,0.06) 36%, rgba(23,23,26,0.95) 100%),
+      var(--card);
+    box-shadow: 0 10px 32px rgba(255,172,24,0.12), inset 0 0 0 1px rgba(255,230,140,0.16);
+    position: relative;
+    overflow: hidden;
+  }
+  .editor-card.streak-card::after {
+    content: '';
+    position: absolute;
+    inset: -40% -20%;
+    background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.10) 50%, transparent 70%);
+    transform: translateX(-60%);
+    animation: streakShine 4.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes streakShine {
+    0%, 72%, 100% { transform: translateX(-65%); opacity: 0; }
+    80% { transform: translateX(0%); opacity: 1; }
+    92% { transform: translateX(55%); opacity: 0; }
+  }
   .editor-card-top { display: flex; gap: 12px; align-items: flex-start; }
   .editor-meta { flex: 1; }
   .editor-name { font-family: var(--font-display); font-size: 13px; font-weight: 600; margin-bottom: 3px; }
@@ -322,8 +351,8 @@
   /* JOB CARD */
   .job-card {
     margin: 0 20px 12px;
-    background: var(--card);
-    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(19, 27, 46, 0.95), rgba(15, 22, 38, 0.95));
+    border: 1px solid rgba(160, 182, 245, 0.22);
     border-radius: 20px;
     padding: 18px;
     cursor: pointer;
@@ -392,11 +421,11 @@
     bottom: 80px;
     right: max(16px, calc(50% - 220px));
     width: 52px; height: 52px;
-    background: var(--accent);
+    background: linear-gradient(145deg, #e2ff6f, #c9f23f);
     border-radius: 16px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    box-shadow: 0 8px 30px rgba(232,255,71,0.35);
+    box-shadow: 0 12px 30px rgba(188, 246, 58, 0.36), 0 0 0 6px rgba(197, 255, 82, 0.12);
     transition: all 0.15s;
     z-index: 99;
   }
@@ -458,7 +487,7 @@
   .modal-sheet {
     width: 100%;
     max-width: 480px;
-    background: var(--bg2);
+    background: linear-gradient(180deg, rgba(16, 23, 40, 0.98), rgba(11, 17, 31, 1));
     border-radius: 24px 24px 0 0;
     border: 1px solid var(--border);
     border-bottom: none;
@@ -1615,10 +1644,19 @@ function renderMonterCard(user, idx) {
   const exp = user.experience ? `<span style="font-size:11px;color:var(--muted2);">📅 ${escHtml(user.experience)}</span>` : '';
   const streak = Number(user.streak_days || 0);
   const streakFire = renderStreakFire(streak);
-  const streakText = streak > 0 ? `<div style="font-size:11px;color:var(--muted2);margin-top:4px;">🔥 Стрик: ${streak} дн.</div>` : '';
+  const streakText = streak > 0
+    ? `<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#ffe6a3;margin-top:6px;background:rgba(255,186,32,0.14);border:1px solid rgba(255,202,94,0.28);padding:4px 8px;border-radius:999px;">
+         <span>🔥</span><span>Стрик: ${streak} дн.</span>
+       </div>`
+    : '';
+  const streakCardClass = streak > 0 ? 'streak-card' : '';
+  const streakBadge = streak > 0
+    ? `<div style="position:absolute;top:10px;right:10px;background:rgba(255,196,51,0.16);border:1px solid rgba(255,214,112,0.34);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#ffe39d;backdrop-filter:blur(4px);">HOT STREAK</div>`
+    : '';
 
   return `
-    <div class="editor-card fade-up" style="animation-delay:${idx * 0.05}s" onclick="viewMonterProfile('${user.id}')">
+    <div class="editor-card ${streakCardClass} fade-up" style="animation-delay:${idx * 0.05}s" onclick="viewMonterProfile('${user.id}')">
+      ${streakBadge}
       <div class="editor-card-top">
         <div class="avatar" style="width:52px;height:52px;font-size:18px;background:${color};">${initials}</div>
         <div class="editor-meta">
