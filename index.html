@@ -568,6 +568,18 @@
     0%, 100% { box-shadow: 0 0 0 0 rgba(232,255,71,0.4); }
     50% { box-shadow: 0 0 0 16px rgba(232,255,71,0); }
   }
+  @keyframes streakPulseGold {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,190,20,0.0)); }
+    50% { transform: scale(1.05); filter: drop-shadow(0 0 8px rgba(255,196,42,0.35)); }
+  }
+  @keyframes streakPulseOrange {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,94,32,0.0)); }
+    50% { transform: scale(1.06); filter: drop-shadow(0 0 10px rgba(255,98,35,0.4)); }
+  }
+  @keyframes streakPulseViolet {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(155,92,255,0.0)); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 12px rgba(168,104,255,0.45)); }
+  }
 </style>
 </head>
 <body>
@@ -1145,18 +1157,27 @@ function getStreakFireSize(streakDays) {
 
 function getStreakFireGradient(streakDays) {
   const day = Number(streakDays || 0);
-  if (day >= 30) return 'linear-gradient(145deg, #8b5cf6, #7c3aed 45%, #c084fc)';
-  if (day >= 10) return 'linear-gradient(145deg, #ff7a18, #ff3d00 45%, #ff8f5a)';
+  if (day >= 20) return 'linear-gradient(145deg, #9f67ff, #7c3aed 45%, #d6b2ff)';
+  if (day >= 10) return 'linear-gradient(145deg, #ff7a18, #ff3d00 45%, #ffb089)';
   return 'linear-gradient(145deg, #ffd84d, #ffb800 50%, #ffe38a)';
+}
+
+function getStreakTier(streakDays) {
+  const day = Number(streakDays || 0);
+  if (day >= 20) return 'violet';
+  if (day >= 10) return 'orange';
+  if (day >= 5) return 'gold';
+  return 'base';
 }
 
 function renderStreakFire(streakDays) {
   const day = Number(streakDays || 0);
   if (day <= 0) return '';
   const size = getStreakFireSize(day);
-  const fireColor = day >= 30 ? '#a855f7' : day >= 10 ? '#ff5a1f' : '#ffbf00';
+  const fireColor = day >= 20 ? '#a855f7' : day >= 10 ? '#ff5a1f' : '#ffbf00';
+  const pulse = day >= 20 ? 'streakPulseViolet 1.6s ease-in-out infinite' : day >= 10 ? 'streakPulseOrange 1.8s ease-in-out infinite' : 'streakPulseGold 2s ease-in-out infinite';
   return `
-    <div title="Стрик: ${day} дн." style="position:relative;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;">
+    <div title="Стрик: ${day} дн." style="position:relative;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;animation:${pulse};">
       <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${Math.round(size * 0.9)}px;line-height:1;filter:drop-shadow(0 5px 10px rgba(0,0,0,0.35));">🔥</div>
       <div style="position:relative;z-index:1;font-family:var(--font-display);font-weight:700;font-size:${Math.max(10, Math.round(size * 0.34))}px;color:${fireColor};text-shadow:0 1px 1px rgba(0,0,0,0.55);">
         ${day}
@@ -1737,24 +1758,34 @@ function renderMonterCard(user, idx) {
 
   const exp = user.experience ? `<span style="font-size:11px;color:var(--muted2);">📅 ${escHtml(user.experience)}</span>` : '';
   const streak = Number(user.streak_days || 0);
+  const streakTier = getStreakTier(streak);
   const streakFire = renderStreakFire(streak);
+  const streakTheme = streakTier === 'violet'
+    ? { txt: '#e8d4ff', bg: 'rgba(158,103,255,0.18)', br: 'rgba(194,152,255,0.45)', card: 'rgba(158,103,255,0.22)' }
+    : streakTier === 'orange'
+      ? { txt: '#ffd1b2', bg: 'rgba(255,95,32,0.18)', br: 'rgba(255,145,98,0.42)', card: 'rgba(255,108,56,0.2)' }
+      : streakTier === 'gold'
+        ? { txt: '#ffe6a3', bg: 'rgba(255,186,32,0.14)', br: 'rgba(255,202,94,0.28)', card: 'rgba(255,180,24,0.18)' }
+        : { txt: '#ffe6a3', bg: 'rgba(255,186,32,0.10)', br: 'rgba(255,202,94,0.2)', card: 'rgba(255,180,24,0.1)' };
   const streakText = streak > 0
-    ? `<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#ffe6a3;margin-top:6px;background:rgba(255,186,32,0.14);border:1px solid rgba(255,202,94,0.28);padding:4px 8px;border-radius:999px;">
+    ? `<div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:${streakTheme.txt};margin-top:6px;background:${streakTheme.bg};border:1px solid ${streakTheme.br};padding:4px 8px;border-radius:999px;">
          <span>🔥</span><span>Стрик: ${streak} дн.</span>
        </div>`
     : '';
-  const streakCardClass = streak > 0 ? 'streak-card' : '';
+  const streakCardClass = streak >= 5 ? 'streak-card' : '';
+  const streakCardStyle = streak >= 5 ? `border-color:${streakTheme.br};box-shadow:0 12px 32px ${streakTheme.card}, inset 0 0 0 1px rgba(255,255,255,0.1);` : '';
   const streakBadge = streak > 0
-    ? `<div style="position:absolute;right:10px;bottom:10px;background:rgba(255,196,51,0.16);border:1px solid rgba(255,214,112,0.34);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#ffe39d;backdrop-filter:blur(4px);z-index:2;">HOT STREAK</div>`
+    ? `<div style="position:absolute;right:10px;bottom:10px;background:${streakTheme.bg};border:1px solid ${streakTheme.br};padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:${streakTheme.txt};backdrop-filter:blur(4px);z-index:2;">HOT STREAK</div>`
     : '';
   const focusBadge = user._focusBadge
     ? `<div style="position:absolute;right:10px;bottom:${streak > 0 ? '40px' : '10px'};background:rgba(73,211,255,0.16);border:1px solid rgba(125,233,255,0.45);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#9cefff;backdrop-filter:blur(4px);z-index:2;">🚀 В ФОКУСЕ</div>`
     : '';
 
   return `
-    <div class="editor-card ${streakCardClass} fade-up" style="animation-delay:${idx * 0.05}s" onclick="viewMonterProfile('${user.id}')">
+    <div class="editor-card ${streakCardClass} fade-up" style="animation-delay:${idx * 0.05}s;${streakCardStyle}" onclick="viewMonterProfile('${user.id}')">
       ${focusBadge}
       ${streakBadge}
+      ${streakTier === 'violet' ? `<div style="position:absolute;right:-22px;top:30%;font-size:64px;opacity:.18;transform:rotate(-16deg);pointer-events:none;filter:blur(.3px);">✨</div>` : ''}
       <div class="editor-card-top">
         <div class="avatar" style="width:52px;height:52px;font-size:18px;background:${color};">${initials}</div>
         <div class="editor-meta">
