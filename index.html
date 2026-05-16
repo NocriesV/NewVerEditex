@@ -315,6 +315,47 @@
     position: relative;
     overflow: hidden;
   }
+  .editor-card.streak-gold {
+    border-color: #ffd76a !important;
+    background:
+      radial-gradient(120% 130% at 88% 8%, rgba(255,219,118,0.46) 0%, rgba(240,167,34,0.26) 34%, rgba(14,18,31,0.92) 72%),
+      linear-gradient(165deg, rgba(45,33,12,0.95), rgba(13,18,32,0.96)) !important;
+    box-shadow: 0 18px 44px rgba(255,188,42,0.30), inset 0 0 0 1px rgba(255,240,190,0.30) !important;
+  }
+  .editor-card.streak-orange {
+    border-color: #ff9a5f !important;
+    background:
+      radial-gradient(120% 130% at 88% 8%, rgba(255,130,66,0.50) 0%, rgba(236,88,29,0.30) 34%, rgba(14,18,31,0.92) 72%),
+      linear-gradient(165deg, rgba(52,22,11,0.95), rgba(13,18,32,0.96)) !important;
+    box-shadow: 0 18px 44px rgba(255,102,41,0.32), inset 0 0 0 1px rgba(255,214,194,0.24) !important;
+  }
+  .editor-card.streak-violet {
+    border-color: #b88cff !important;
+    background:
+      radial-gradient(120% 130% at 88% 8%, rgba(170,108,255,0.54) 0%, rgba(123,69,226,0.33) 34%, rgba(14,18,31,0.90) 72%),
+      linear-gradient(165deg, rgba(31,18,52,0.95), rgba(13,18,32,0.96)) !important;
+    box-shadow: 0 20px 50px rgba(154,88,255,0.40), inset 0 0 0 1px rgba(231,214,255,0.28) !important;
+    animation: violetAura 2.2s ease-in-out infinite;
+  }
+  .editor-card.streak-violet::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 20px;
+    background: linear-gradient(120deg, rgba(192,145,255,0.0) 0%, rgba(223,196,255,0.55) 20%, rgba(192,145,255,0.0) 40%);
+    transform: translateX(-110%);
+    animation: violetSweep 3.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes violetAura {
+    0%,100% { box-shadow: 0 20px 50px rgba(154,88,255,0.35), inset 0 0 0 1px rgba(231,214,255,0.28); }
+    50% { box-shadow: 0 24px 56px rgba(174,114,255,0.48), inset 0 0 0 1px rgba(242,231,255,0.36); }
+  }
+  @keyframes violetSweep {
+    0%, 65%, 100% { transform: translateX(-110%); opacity: 0; }
+    72% { opacity: 1; }
+    86% { transform: translateX(110%); opacity: 0; }
+  }
   .editor-card.streak-card::after {
     content: '';
     position: absolute;
@@ -1804,7 +1845,13 @@ function renderMonterCard(user, idx) {
          <span>🔥</span><span>Стрик: ${streak} дн.</span>
        </div>`
     : '';
-  const streakCardClass = streak >= 5 ? 'streak-card' : '';
+  const streakCardClass = streakTier === 'violet'
+    ? 'streak-card streak-violet'
+    : streakTier === 'orange'
+      ? 'streak-card streak-orange'
+      : streakTier === 'gold'
+        ? 'streak-card streak-gold'
+        : '';
   const streakCardStyle = streak >= 5
     ? `border-color:${streakTheme.cardBorder};background:${streakTheme.cardBg};box-shadow:0 16px 42px ${streakTheme.cardGlow}, inset 0 0 0 1px rgba(255,255,255,0.14);`
     : '';
