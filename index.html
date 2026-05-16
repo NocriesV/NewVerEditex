@@ -1117,8 +1117,10 @@ function showLoadError(msg) {
 }
 
 function showAppealModal() {
+  const defaultName = state.user?.username || state.tgUser?.first_name || '';
   openModal(`
-    <div class="display-title" style="font-size:16px;margin-bottom:10px;">Апелляция по бану</div>
+    <div class="display-title" style="font-size:16px;margin-bottom:6px;">Форма апелляции</div>
+    <p style="font-size:12px;color:var(--accent);margin-bottom:10px;">Заполните форму ниже, мы рассмотрим обращение.</p>
     <p style="font-size:12px;color:var(--muted2);line-height:1.5;margin-bottom:12px;">
       Опишите ситуацию, и администратор рассмотрит заявку.
     </p>
@@ -1128,13 +1130,21 @@ function showAppealModal() {
         <textarea class="input" rows="4" id="appeal-text" placeholder="Почему бан нужно пересмотреть..."></textarea>
       </div>
     </div>
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Ваше имя *</label>
+        <input class="input" id="appeal-name" placeholder="Ваше имя" value="${escHtml(defaultName)}">
+      </div>
+    </div>
     <button class="btn btn-primary" onclick="submitAppeal()">Отправить апелляцию</button>
   `);
 }
 
 async function submitAppeal() {
   const text = (document.getElementById('appeal-text')?.value || '').trim();
+  const name = (document.getElementById('appeal-name')?.value || '').trim();
   if (!text) { showToast('⚠️ Опишите апелляцию'); return; }
+  if (!name) { showToast('⚠️ Укажите имя'); return; }
   if (!state.user?.id) { showToast('⚠️ Нет профиля пользователя'); return; }
   try {
     await sb.insert('moderation_logs', {
@@ -1144,6 +1154,7 @@ async function submitAppeal() {
       target_order_id: null,
       reason: text,
       metadata: {
+        name,
         telegram_id: String(state.tgUser?.id || ''),
         tg_username: state.tgUser?.username || null,
         source: 'banned_screen'
@@ -2335,16 +2346,29 @@ async function adminLog(action, targetUserId = null, targetOrderId = null, reaso
 async function openAdminPanel() {
   if (!adminGuard()) return;
   showScreen('screen-admin');
-  await renderAdminPanel();
+  await loadAdminData();
+  renderAdminPanelView();
 }
 
-async function renderAdminPanel() {
+async function loadAdminData() {
   const root = document.getElementById('admin-content');
   root.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
   try {
-    const users = await sb.select('users', 'order=created_at.desc&limit=200');
-    const orders = await sb.select('orders', 'order=created_at.desc&limit=200');
-    const appeals = await sb.select('moderation_logs', 'action=eq.appeal_create&order=created_at.desc&limit=200');
+    window._adminUsers = await sb.select('users', 'order=created_at.desc&limit=200');
+    window._adminOrders = await sb.select('orders', 'order=created_at.desc&limit=200');
+    window._adminAppeals = await sb.select('moderation_logs', 'action=eq.appeal_create&order=created_at.desc&limit=200');
+  } catch (e) {
+    console.error(e);
+    root.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка админ-панели</div></div>';
+  }
+}
+
+function renderAdminPanelView() {
+  const root = document.getElementById('admin-content');
+  try {
+    const users = window._adminUsers || [];
+    const orders = window._adminOrders || [];
+    const appeals = window._adminAppeals || [];
 
     const currentTab = window._adminTab || 'accounts';
     const q = (window._adminSearch || '').trim().toLowerCase();
@@ -2464,12 +2488,12 @@ async function renderAdminPanel() {
 
 function setAdminTab(tab) {
   window._adminTab = tab;
-  renderAdminPanel();
+  renderAdminPanelView();
 }
 
 function setAdminSearch(value) {
   window._adminSearch = value || '';
-  renderAdminPanel();
+  renderAdminPanelView();
 }
 
 async function adminBanUser(userId) {
@@ -2484,7 +2508,8 @@ async function adminBanUser(userId) {
     }, `id=eq.${encodeURIComponent(userId)}`);
     await adminLog('ban_user', userId, null, reason);
     showToast('✅ Пользователь забанен', 'success');
-    await renderAdminPanel();
+    await loadAdminData();
+    renderAdminPanelView();
   } catch (e) {
     showToast('❌ ' + sbError(e).slice(0, 100));
   }
@@ -2501,7 +2526,8 @@ async function adminUnbanUser(userId) {
     }, `id=eq.${encodeURIComponent(userId)}`);
     await adminLog('unban_user', userId, null, 'Разбан');
     showToast('✅ Пользователь разбанен', 'success');
-    await renderAdminPanel();
+    await loadAdminData();
+    renderAdminPanelView();
   } catch (e) {
     showToast('❌ ' + sbError(e).slice(0, 100));
   }
@@ -2520,7 +2546,8 @@ async function adminDeleteOrder(orderId) {
     await adminLog('delete_order', null, orderId, reason);
     showToast('✅ Заказ скрыт', 'success');
     state._ordersCache = null;
-    await renderAdminPanel();
+    await loadAdminData();
+    renderAdminPanelView();
   } catch (e) {
     showToast('❌ ' + sbError(e).slice(0, 100));
   }
@@ -2538,7 +2565,8 @@ async function adminRestoreOrder(orderId) {
     await adminLog('restore_order', null, orderId, 'Восстановлен');
     showToast('✅ Заказ восстановлен', 'success');
     state._ordersCache = null;
-    await renderAdminPanel();
+    await loadAdminData();
+    renderAdminPanelView();
   } catch (e) {
     showToast('❌ ' + sbError(e).slice(0, 100));
   }
