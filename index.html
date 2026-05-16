@@ -856,6 +856,19 @@
     <div class="screen-content" id="my-profile-content"></div>
   </div>
 
+  <!-- =================== ADMIN PANEL =================== -->
+  <div class="screen" id="screen-admin">
+    <div class="page-header">
+      <div class="back-btn" onclick="showScreen('screen-my-profile')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#f0f0f0" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="display-title" style="font-size:15px;">Админ-панель</span>
+    </div>
+    <div class="screen-content" id="admin-content">
+      <div class="loader"><div class="spinner"></div> Загрузка...</div>
+    </div>
+  </div>
+
   <!-- =================== MY JOBS (client) =================== -->
   <div class="screen" id="screen-my-jobs">
     <div class="screen-content">
@@ -1118,7 +1131,11 @@ async function loadOrCreateUser() {
   if (users && users.length > 0) {
     state.user = users[0];
     if (state.user?.role === 'editor') state.user.role = 'monter';
-    state.role = state.user.role || null;
+    state.role = state.user.role_v2 || state.user.role || null;
+    if (state.user?.is_banned) {
+      showLoadError('Ваш аккаунт заблокирован.<br>Обратитесь к администратору.');
+      return;
+    }
     if (state.role) {
       // Аккаунт уже зарегистрирован — сразу в дашборд
       await enterDashboard();
@@ -1178,6 +1195,10 @@ if (insertedUser && insertedUser.length > 0) {
 
 
 async function enterDashboard() {
+  if (state.user?.is_banned) {
+    showLoadError('Ваш аккаунт заблокирован.<br>Доступ ограничен.');
+    return;
+  }
   // Clear caches on fresh login
   state._montersCache = null;
   state._ordersCache = null;
@@ -1493,7 +1514,7 @@ async function loadOrders(filter = 'all') {
   try {
     // Cache all open orders
     if (!state._ordersCache) {
-      state._ordersCache = await sb.select('orders', `status=eq.open&order=created_at.desc`) || [];
+      state._ordersCache = await sb.select('orders', `status=eq.open&is_deleted=eq.false&order=created_at.desc`) || [];
     }
     let orders = state._ordersCache;
 
@@ -1963,7 +1984,7 @@ async function loadMyJobs() {
   container.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
 
   try {
-    const orders = await sb.select('orders', `client_id=eq.${state.user.id}&order=created_at.desc`);
+    const orders = await sb.select('orders', `client_id=eq.${state.user.id}&is_deleted=eq.false&order=created_at.desc`);
 
     if (!orders || orders.length === 0) {
       container.innerHTML = `
@@ -2114,6 +2135,7 @@ async function loadMyResponses() {
 // ============ RENDER MY PROFILE ============
 async function renderMyProfile() {
   const isEditor = state.role === 'editor' || state.role === 'monter';
+  const isAdmin = isAdminUser();
   const name = state.user?.username || state.tgUser?.first_name || 'Пользователь';
   const initials = name.slice(0, 2).toUpperCase();
   const roleLabel = isEditor ? 'Монтажёр' : 'Заказчик';
@@ -2229,9 +2251,177 @@ async function renderMyProfile() {
           <button class="btn ${isEditor?'btn-primary':'btn-secondary'} btn-sm" style="flex:1;" onclick="switchRole('editor')">✂️ Монтажёр</button>
         </div>
       </div>
+      ${isAdmin ? `<button class="btn btn-ghost" style="margin-bottom:10px;" onclick="openAdminPanel()">🛡️ Открыть админ-панель</button>` : ''}
       <button class="btn btn-danger" onclick="logout()">Выйти из аккаунта</button>
     </div>
     <div class="scroll-pad"></div>`;
+}
+
+function isAdminUser() {
+  const role = state.user?.role_v2 || state.user?.role || state.role;
+  return role === 'admin';
+}
+
+function adminGuard() {
+  if (!isAdminUser()) {
+    showToast('⛔ Только для админа');
+    return false;
+  }
+  return true;
+}
+
+async function adminLog(action, targetUserId = null, targetOrderId = null, reason = '', metadata = {}) {
+  try {
+    await sb.insert('moderation_logs', {
+      admin_user_id: state.user.id,
+      action,
+      target_user_id: targetUserId,
+      target_order_id: targetOrderId,
+      reason: reason || null,
+      metadata
+    });
+  } catch (e) {
+    console.error('admin log error', e);
+  }
+}
+
+async function openAdminPanel() {
+  if (!adminGuard()) return;
+  showScreen('screen-admin');
+  await renderAdminPanel();
+}
+
+async function renderAdminPanel() {
+  const root = document.getElementById('admin-content');
+  root.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+  try {
+    const users = await sb.select('users', 'order=created_at.desc&limit=50');
+    const orders = await sb.select('orders', 'order=created_at.desc&limit=50');
+
+    const usersHtml = (users || []).map(u => {
+      const name = u.username || u.tg_username || `ID ${String(u.id).slice(0, 6)}`;
+      const role = u.role_v2 || u.role || '—';
+      const banned = !!u.is_banned;
+      return `
+        <div class="card" style="margin:0 20px 10px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+            <div>
+              <div style="font-weight:600;font-size:13px;">${escHtml(name)}</div>
+              <div style="font-size:11px;color:var(--muted2);margin-top:3px;">role: ${escHtml(String(role))} • tg: ${escHtml(String(u.telegram_id || '—'))}</div>
+            </div>
+            <span class="tag ${banned ? 'tag-orange' : 'tag-green'}">${banned ? 'Бан' : 'Активен'}</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            ${banned
+              ? `<button class="btn btn-secondary btn-sm" onclick="adminUnbanUser('${u.id}')">Разбанить</button>`
+              : `<button class="btn btn-danger btn-sm" onclick="adminBanUser('${u.id}')">Забанить</button>`}
+          </div>
+        </div>`;
+    }).join('') || '<div class="empty-state"><div class="empty-state-title">Пользователи не найдены</div></div>';
+
+    const ordersHtml = (orders || []).map(o => {
+      const deleted = !!o.is_deleted;
+      const title = o.title || 'Без названия';
+      return `
+        <div class="card" style="margin:0 20px 10px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+            <div>
+              <div style="font-weight:600;font-size:13px;">${escHtml(title)}</div>
+              <div style="font-size:11px;color:var(--muted2);margin-top:3px;">status: ${escHtml(String(o.status || '—'))} • id: ${escHtml(String(o.id).slice(0, 8))}</div>
+            </div>
+            <span class="tag ${deleted ? 'tag-gray' : 'tag-blue'}">${deleted ? 'Скрыт' : 'Публичный'}</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            ${deleted
+              ? `<button class="btn btn-secondary btn-sm" onclick="adminRestoreOrder('${o.id}')">Восстановить</button>`
+              : `<button class="btn btn-danger btn-sm" onclick="adminDeleteOrder('${o.id}')">Скрыть заказ</button>`}
+          </div>
+        </div>`;
+    }).join('') || '<div class="empty-state"><div class="empty-state-title">Заказы не найдены</div></div>';
+
+    root.innerHTML = `
+      <div class="section-title" style="margin-top:16px;">Пользователи</div>
+      ${usersHtml}
+      <div class="section-title">Заказы</div>
+      ${ordersHtml}
+      <div class="scroll-pad"></div>
+    `;
+  } catch (e) {
+    console.error(e);
+    root.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка админ-панели</div></div>';
+  }
+}
+
+async function adminBanUser(userId) {
+  if (!adminGuard()) return;
+  const reason = prompt('Причина бана:') || 'Нарушение правил';
+  try {
+    await sb.update('users', {
+      is_banned: true,
+      ban_reason: reason,
+      banned_at: new Date().toISOString(),
+      banned_by: state.user.id
+    }, `id=eq.${encodeURIComponent(userId)}`);
+    await adminLog('ban_user', userId, null, reason);
+    showToast('✅ Пользователь забанен', 'success');
+    await renderAdminPanel();
+  } catch (e) {
+    showToast('❌ ' + sbError(e).slice(0, 100));
+  }
+}
+
+async function adminUnbanUser(userId) {
+  if (!adminGuard()) return;
+  try {
+    await sb.update('users', {
+      is_banned: false,
+      ban_reason: null,
+      banned_at: null,
+      banned_by: null
+    }, `id=eq.${encodeURIComponent(userId)}`);
+    await adminLog('unban_user', userId, null, 'Разбан');
+    showToast('✅ Пользователь разбанен', 'success');
+    await renderAdminPanel();
+  } catch (e) {
+    showToast('❌ ' + sbError(e).slice(0, 100));
+  }
+}
+
+async function adminDeleteOrder(orderId) {
+  if (!adminGuard()) return;
+  const reason = prompt('Причина скрытия заказа:') || 'Модерация';
+  try {
+    await sb.update('orders', {
+      is_deleted: true,
+      deleted_at: new Date().toISOString(),
+      deleted_reason: reason,
+      deleted_by: state.user.id
+    }, `id=eq.${encodeURIComponent(orderId)}`);
+    await adminLog('delete_order', null, orderId, reason);
+    showToast('✅ Заказ скрыт', 'success');
+    state._ordersCache = null;
+    await renderAdminPanel();
+  } catch (e) {
+    showToast('❌ ' + sbError(e).slice(0, 100));
+  }
+}
+
+async function adminRestoreOrder(orderId) {
+  if (!adminGuard()) return;
+  try {
+    await sb.update('orders', {
+      is_deleted: false,
+      deleted_at: null,
+      deleted_reason: null,
+      deleted_by: null
+    }, `id=eq.${encodeURIComponent(orderId)}`);
+    await adminLog('restore_order', null, orderId, 'Восстановлен');
+    showToast('✅ Заказ восстановлен', 'success');
+    state._ordersCache = null;
+    await renderAdminPanel();
+  } catch (e) {
+    showToast('❌ ' + sbError(e).slice(0, 100));
+  }
 }
 
 function showEditBioModal() {
@@ -2378,6 +2568,10 @@ function sbError(e) {
 }
 
 async function submitJob() {
+  if (state.user?.is_banned) {
+    showToast('⛔ Аккаунт заблокирован');
+    return;
+  }
   const title = document.getElementById('job-title').value.trim();
   const desc = document.getElementById('job-desc').value.trim();
   const budget = document.getElementById('job-budget').value;
@@ -2433,6 +2627,10 @@ async function submitJob() {
 }
 
 async function submitResponse() {
+  if (state.user?.is_banned) {
+    showToast('⛔ Аккаунт заблокирован');
+    return;
+  }
   const comment = document.getElementById('response-message').value.trim();
   const price = document.getElementById('response-price').value;
 
@@ -2722,6 +2920,7 @@ async function completeSetup() {
     const selectedSpecs = window._selectedSpecs || [];
     const updatePayload = {
       role: dbRole,
+      role_v2: dbRole,
       username: name,
       tg_username: tgUsernameRaw || null,
     };
@@ -2772,8 +2971,9 @@ async function switchRole(newRole) {
     return;
   }
   try {
-    await sb.update('users', { role: dbRole }, `telegram_id=eq.${state.tgUser.id}`);
+    await sb.update('users', { role: dbRole, role_v2: dbRole }, `telegram_id=eq.${state.tgUser.id}`);
     state.user.role = dbRole;
+    state.user.role_v2 = dbRole;
     state.role = dbRole;
     state._montersCache = null;
     state._ordersCache = null;
