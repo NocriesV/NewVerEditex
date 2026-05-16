@@ -1606,6 +1606,8 @@ function renderMontersList() {
     list.sort((a, b) => (parseFloat(a.price_from) || 0) - (parseFloat(b.price_from) || 0));
   } else if (sort === 'price_desc') {
     list.sort((a, b) => (parseFloat(b.price_from) || 0) - (parseFloat(a.price_from) || 0));
+  } else {
+    list = buildFairMonterFeed(list);
   }
 
   const container = document.getElementById('editors-list');
@@ -1614,6 +1616,67 @@ function renderMontersList() {
     return;
   }
   container.innerHTML = list.map((m, i) => renderMonterCard(m, i)).join('');
+}
+
+function getMonterDoneCount(user) {
+  return Number(user.completed_orders || user.deals_count || 0);
+}
+
+function getMonterQualityScore(user) {
+  const elo = Number(user.elo_rating || 1000);
+  const rating = Number(user.rating || 0) * 100;
+  const done = getMonterDoneCount(user) * 8;
+  const streak = Number(user.streak_days || 0) * 4;
+  return elo * 0.4 + rating * 0.3 + done + streak;
+}
+
+function isNewcomerMonter(user) {
+  return getMonterDoneCount(user) < 5;
+}
+
+function buildFairMonterFeed(sourceList) {
+  const newcomers = [];
+  const experienced = [];
+
+  sourceList.forEach(u => {
+    const clone = { ...u, _focusBadge: false };
+    if (isNewcomerMonter(clone)) newcomers.push(clone);
+    else experienced.push(clone);
+  });
+
+  newcomers.sort((a, b) => getMonterQualityScore(b) - getMonterQualityScore(a));
+  experienced.sort((a, b) => getMonterQualityScore(b) - getMonterQualityScore(a));
+
+  const result = [];
+  const targetTop = Math.min(10, sourceList.length);
+  const newcomerSlots = Math.min(newcomers.length, Math.ceil(targetTop * 0.3)); // ~3 из 10
+  const totalTopSlots = targetTop;
+  const experiencedSlots = Math.max(0, totalTopSlots - newcomerSlots);
+
+  let eUsed = 0;
+  let nUsed = 0;
+
+  // Паттерн 2 опытных + 1 новичок
+  while (result.length < totalTopSlots && (eUsed < experiencedSlots || nUsed < newcomerSlots)) {
+    if (eUsed < experiencedSlots && experienced[eUsed]) {
+      result.push(experienced[eUsed++]);
+    }
+    if (eUsed < experiencedSlots && experienced[eUsed]) {
+      result.push(experienced[eUsed++]);
+    }
+    if (nUsed < newcomerSlots && newcomers[nUsed]) {
+      newcomers[nUsed]._focusBadge = true;
+      result.push(newcomers[nUsed++]);
+    }
+  }
+
+  // Остаток после топ-слотов
+  const tail = [
+    ...experienced.slice(eUsed),
+    ...newcomers.slice(nUsed).map(u => ({ ...u, _focusBadge: false }))
+  ].sort((a, b) => getMonterQualityScore(b) - getMonterQualityScore(a));
+
+  return [...result, ...tail];
 }
 
 function renderMonterCard(user, idx) {
@@ -1653,9 +1716,13 @@ function renderMonterCard(user, idx) {
   const streakBadge = streak > 0
     ? `<div style="position:absolute;top:10px;right:10px;background:rgba(255,196,51,0.16);border:1px solid rgba(255,214,112,0.34);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#ffe39d;backdrop-filter:blur(4px);">HOT STREAK</div>`
     : '';
+  const focusBadge = user._focusBadge
+    ? `<div style="position:absolute;top:10px;left:10px;background:rgba(73,211,255,0.16);border:1px solid rgba(125,233,255,0.45);padding:4px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#9cefff;backdrop-filter:blur(4px);">🚀 В ФОКУСЕ</div>`
+    : '';
 
   return `
     <div class="editor-card ${streakCardClass} fade-up" style="animation-delay:${idx * 0.05}s" onclick="viewMonterProfile('${user.id}')">
+      ${focusBadge}
       ${streakBadge}
       <div class="editor-card-top">
         <div class="avatar" style="width:52px;height:52px;font-size:18px;background:${color};">${initials}</div>
