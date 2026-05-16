@@ -667,9 +667,9 @@
           <div class="avatar" style="width:40px;height:40px;font-size:14px;background:linear-gradient(135deg,#e8ff47,#a3b71a);" id="client-avatar" onclick="navigate('screen-my-profile')">?</div>
         </div>
 
-        <div class="search-bar" onclick="showToast('🔍 Поиск в разработке')">
+        <div class="search-bar">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#6b6b72" stroke-width="1.5"/><path d="M11 11L14 14" stroke="#6b6b72" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span style="font-size:13px;">Поиск монтажёров...</span>
+          <input class="input" id="monter-search" placeholder="Поиск монтажёров..." oninput="setMonterSearch(this.value)" style="background:transparent;border:none;padding:0;font-size:13px;height:auto;">
         </div>
 
         <div class="filter-chips">
@@ -895,6 +895,25 @@
     </div>
   </div>
 
+  <!-- =================== LEADERBOARD =================== -->
+  <div class="screen" id="screen-leaderboard">
+    <div class="screen-content">
+      <div class="dash-header" style="padding-bottom:12px;">
+        <div class="display-title" style="font-size:20px;padding-top:4px;">Лидерборд монтажёров</div>
+        <div style="font-size:12px;color:var(--muted2);margin-top:6px;">ELO-рейтинг обновляется по активности и результатам</div>
+      </div>
+      <div style="padding:0 20px 10px;display:flex;gap:8px;overflow-x:auto;">
+        <div class="chip active" id="lb-all" onclick="setLeaderboardPeriod('all')">Все время</div>
+        <div class="chip" id="lb-30d" onclick="setLeaderboardPeriod('30d')">30 дней</div>
+        <div class="chip" id="lb-7d" onclick="setLeaderboardPeriod('7d')">7 дней</div>
+      </div>
+      <div id="leaderboard-list">
+        <div class="loader"><div class="spinner"></div> Загрузка...</div>
+      </div>
+      <div class="scroll-pad"></div>
+    </div>
+  </div>
+
   <!-- =================== CLIENT PROFILE (view) =================== -->
   <div class="screen" id="screen-client-profile">
     <div class="page-header">
@@ -918,6 +937,10 @@
   <div class="nav-item" id="nav-list" onclick="navTo('list')">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
     <span class="nav-label" id="nav-list-label">Заказы</span>
+  </div>
+  <div class="nav-item" id="nav-leaderboard" onclick="navTo('leaderboard')">
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 20V10"/><path d="M12 20V4"/><path d="M18 20v-7"/></svg>
+    <span class="nav-label">Топ</span>
   </div>
   <div class="nav-item" id="nav-profile" onclick="navTo('profile')">
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -1047,6 +1070,117 @@ const state = {
   user: null,
   tgUser: null,
 };
+
+window._leaderboardPeriod = 'all';
+
+function getEloRankTitle(elo) {
+  if (elo >= 1700) return 'Легенда';
+  if (elo >= 1450) return 'Топ';
+  if (elo >= 1250) return 'Профи';
+  return 'Новичок';
+}
+
+function getEloByUser(user) {
+  const raw = user?.elo_rating;
+  return Number.isFinite(Number(raw)) ? Number(raw) : 1000;
+}
+
+async function addGameEvent(userId, eventType, eloDelta, scoreDelta = 0, meta = {}) {
+  try {
+    let userRows = await sb.select('users', `id=eq.${encodeURIComponent(userId)}&limit=1`);
+    const user = userRows?.[0];
+    if (!user) return;
+    const prevElo = getEloByUser(user);
+    const nextElo = Math.max(100, Math.round(prevElo + eloDelta));
+    const prevScore = Number(user.gamification_score || 0);
+    const nextScore = Math.max(0, prevScore + scoreDelta);
+    const completed = eventType === 'order_done' ? Number(user.completed_orders || 0) + 1 : Number(user.completed_orders || 0);
+
+    await sb.update('users', {
+      elo_rating: nextElo,
+      gamification_score: nextScore,
+      completed_orders: completed,
+      gamer_rank: getEloRankTitle(nextElo)
+    }, `id=eq.${encodeURIComponent(userId)}`);
+
+    try {
+      await sb.insert('gamification_events', {
+        user_id: userId,
+        event_type: eventType,
+        elo_delta: eloDelta,
+        score_delta: scoreDelta,
+        elo_before: prevElo,
+        elo_after: nextElo,
+        metadata: meta
+      });
+    } catch (e) {}
+  } catch (e) {
+    console.error('gamification event error', e);
+  }
+}
+
+function renderLeaderboardItem(user, idx) {
+  const name = user.username || user.tg_username || 'Монтажёр';
+  const elo = getEloByUser(user);
+  const rank = user.gamer_rank || getEloRankTitle(elo);
+  const score = Number(user.gamification_score || 0);
+  const done = Number(user.completed_orders || 0);
+  const initials = name.slice(0, 2).toUpperCase();
+  const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+  return `
+    <div class="card" style="margin:0 20px 10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-family:var(--font-display);min-width:36px;color:var(--accent);font-size:14px;">${medal}</div>
+        <div class="avatar" style="width:40px;height:40px;font-size:13px;">${initials}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13px;">${escHtml(name)}</div>
+          <div style="font-size:11px;color:var(--muted2);">${escHtml(rank)} • ${done} сделок</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:var(--font-display);font-size:16px;color:#fbbf24;">${elo}</div>
+          <div style="font-size:11px;color:var(--muted2);">Score ${score}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function renderLeaderboard() {
+  const root = document.getElementById('leaderboard-list');
+  root.innerHTML = '<div class="loader"><div class="spinner"></div> Загрузка...</div>';
+  try {
+    const users = await sb.select('users', `role=in.(editor,monter)&is_banned=eq.false&order=created_at.desc&limit=300`);
+    let list = (users || []);
+    const period = window._leaderboardPeriod || 'all';
+    if (period !== 'all') {
+      const days = period === '7d' ? 7 : 30;
+      const ts = Date.now() - days * 24 * 60 * 60 * 1000;
+      list = list.filter(u => !u.created_at || new Date(u.created_at).getTime() >= ts);
+    }
+    list.sort((a, b) => {
+      const eloDiff = getEloByUser(b) - getEloByUser(a);
+      if (eloDiff !== 0) return eloDiff;
+      const doneDiff = Number(b.completed_orders || 0) - Number(a.completed_orders || 0);
+      if (doneDiff !== 0) return doneDiff;
+      return (Number(b.rating || 0) - Number(a.rating || 0));
+    });
+    if (!list.length) {
+      root.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🏆</div><div class="empty-state-title">Пока пусто</div><div class="empty-state-desc">Скоро здесь появятся лидеры</div></div>';
+      return;
+    }
+    root.innerHTML = list.map((u, i) => renderLeaderboardItem(u, i)).join('');
+  } catch (e) {
+    root.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
+  }
+}
+
+function setLeaderboardPeriod(period) {
+  window._leaderboardPeriod = period;
+  ['all', '30d', '7d'].forEach(p => {
+    const el = document.getElementById('lb-' + p);
+    if (el) el.classList.toggle('active', p === period);
+  });
+  renderLeaderboard();
+}
 
 // ============ TELEGRAM INIT ============
 function dbg(msg) {
@@ -1295,32 +1429,8 @@ async function loadMonters(cat = 'all') {
       state._montersCache = monters || [];
     }
 
-    let list = state._montersCache;
-
-    // Filter by category (specialty field)
-    if (cat !== 'all') {
-     list = list.filter(m => {
-  const specialty = Array.isArray(m.specialty)
-    ? m.specialty.join(',')
-    : typeof m.specialty === 'string'
-      ? m.specialty
-      : '';
-
-  return specialty.toLowerCase().includes(cat);
-});
-    }
-
-    if (!list || list.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state-icon">✂️</div>
-          <div class="empty-state-title">${cat === 'all' ? 'Монтажёров пока нет' : 'Нет монтажёров в этой категории'}</div>
-          <div class="empty-state-desc">Скоро здесь появятся профессиональные монтажёры</div>
-        </div>`;
-      return;
-    }
-
-    container.innerHTML = list.map((m, i) => renderMonterCard(m, i)).join('');
+    state._montersCat = cat;
+    renderMontersList();
   } catch (e) {
     console.error('loadMonters error:', e);
     container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Ошибка загрузки</div></div>';
@@ -1331,8 +1441,8 @@ function filterMonters(el) {
   el.closest('.filter-chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   const cat = el.getAttribute('data-cat') || 'all';
-  state._montersSort = null;
-  loadMonters(cat);
+  state._montersCat = cat;
+  renderMontersList();
 }
 
 function sortMonters(el) {
@@ -1340,8 +1450,38 @@ function sortMonters(el) {
   el.classList.add('active');
   const sort = el.getAttribute('data-sort');
   state._montersSort = sort;
+  renderMontersList();
+}
 
+function setMonterSearch(value) {
+  state._montersSearch = (value || '').toLowerCase().trim();
+  renderMontersList();
+}
+
+function renderMontersList() {
   let list = [...(state._montersCache || [])];
+  const cat = state._montersCat || 'all';
+  const search = state._montersSearch || '';
+  const sort = state._montersSort || null;
+
+  if (cat !== 'all') {
+    list = list.filter(m => {
+      const specialty = Array.isArray(m.specialty)
+        ? m.specialty.join(',')
+        : typeof m.specialty === 'string'
+          ? m.specialty
+          : '';
+      return specialty.toLowerCase().includes(cat);
+    });
+  }
+
+  if (search) {
+    list = list.filter(m => {
+      const raw = `${m.username || ''} ${m.tg_username || ''} ${m.experience || ''} ${m.specialty || ''}`.toLowerCase();
+      return raw.includes(search);
+    });
+  }
+
   if (sort === 'rating') {
     list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
   } else if (sort === 'price_asc') {
@@ -1352,7 +1492,7 @@ function sortMonters(el) {
 
   const container = document.getElementById('editors-list');
   if (!list.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✂️</div><div class="empty-state-title">Монтажёров пока нет</div></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">✂️</div><div class="empty-state-title">Ничего не найдено</div><div class="empty-state-desc">Измени фильтр или поисковый запрос</div></div>`;
     return;
   }
   container.innerHTML = list.map((m, i) => renderMonterCard(m, i)).join('');
@@ -1845,6 +1985,7 @@ async function acceptProposal(proposalId, orderId) {
     const monterId = props?.[0]?.monter_id || null;
     await sb.update('proposals', { status: 'accepted' }, `id=eq.${proposalId}`);
     await sb.update('orders', { status: 'in_progress', monter_id: monterId }, `id=eq.${orderId}`);
+    if (monterId) await addGameEvent(monterId, 'proposal_accepted', 24, 40, { order_id: orderId, proposal_id: proposalId });
     state._ordersCache = null;
     showToast('✅ Монтажёр выбран!', 'success');
     // Обновляем список откликов и сразу перезагружаем мои заказы
@@ -1861,7 +2002,10 @@ async function acceptProposal(proposalId, orderId) {
 // ============ ORDER DONE / CANCEL ============
 async function markOrderDone(orderId) {
   try {
+    const orderRows = await sb.select('orders', `id=eq.${orderId}&limit=1`);
+    const currentOrder = orderRows?.[0];
     await sb.update('orders', { status: 'done' }, `id=eq.${orderId}`);
+    if (currentOrder?.monter_id) await addGameEvent(currentOrder.monter_id, 'order_done', 36, 80, { order_id: orderId });
     state._ordersCache = null;
     showToast('✅ Заказ отмечен как выполненный', 'success');
     await loadProposals(orderId);
@@ -1970,6 +2114,9 @@ async function submitReview(revieweeId, orderId, revieweeRole) {
 
     // Recalculate average rating for reviewee
     await recalcRating(revieweeId);
+    if ((window._reviewStar || 0) >= 5 && revieweeRole === 'monter') {
+      await addGameEvent(revieweeId, 'review_5star', 12, 20, { order_id: orderId });
+    }
 
     document.getElementById('modal').classList.remove('show');
     showToast('✅ Оценка сохранена!', 'success');
@@ -2815,6 +2962,7 @@ async function submitResponse() {
 
   try {
     const result = await sb.insert('proposals', payload);
+    await addGameEvent(state.user.id, 'proposal_sent', 8, 10, { order_id: state.currentOrderId });
     console.log('Proposal created:', result);
     showToast('✅ Отклик отправлен!', 'success');
 
@@ -2862,7 +3010,7 @@ function goBackToDash() {
 
 function updateNav() {
   const s = state.currentScreen;
-  const navScreens = ['screen-client-dashboard', 'screen-editor-dashboard', 'screen-my-jobs', 'screen-my-responses', 'screen-my-profile'];
+  const navScreens = ['screen-client-dashboard', 'screen-editor-dashboard', 'screen-my-jobs', 'screen-my-responses', 'screen-my-profile', 'screen-leaderboard'];
   const showNav = navScreens.includes(s);
 
   document.getElementById('bottom-nav').classList.toggle('hidden', !showNav);
@@ -2871,6 +3019,7 @@ function updateNav() {
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
   if (s.includes('dashboard')) document.getElementById('nav-home').classList.add('active');
   else if (s.includes('my-jobs') || s.includes('my-responses')) document.getElementById('nav-list').classList.add('active');
+  else if (s.includes('leaderboard')) document.getElementById('nav-leaderboard').classList.add('active');
   else if (s.includes('my-profile')) document.getElementById('nav-profile').classList.add('active');
 }
 
@@ -2890,6 +3039,9 @@ async function navTo(tab) {
   } else if (tab === 'profile') {
     showScreen('screen-my-profile');
     await renderMyProfile();
+  } else if (tab === 'leaderboard') {
+    showScreen('screen-leaderboard');
+    await renderLeaderboard();
   }
 }
 
