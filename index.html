@@ -1651,22 +1651,29 @@ function buildFairMonterFeed(sourceList) {
   const targetTop = Math.min(10, sourceList.length);
   const newcomerSlots = Math.min(newcomers.length, Math.ceil(targetTop * 0.3)); // ~3 из 10
   const totalTopSlots = targetTop;
-  const experiencedSlots = Math.max(0, totalTopSlots - newcomerSlots);
+  const experiencedSlots = Math.min(experienced.length, Math.max(0, totalTopSlots - newcomerSlots));
+  const newcomerTopSlots = Math.min(newcomerSlots + Math.max(0, totalTopSlots - experiencedSlots - newcomerSlots), newcomers.length);
 
   let eUsed = 0;
   let nUsed = 0;
 
   // Паттерн 2 опытных + 1 новичок
-  while (result.length < totalTopSlots && (eUsed < experiencedSlots || nUsed < newcomerSlots)) {
+  let safety = 0;
+  while (result.length < totalTopSlots && (eUsed < experiencedSlots || nUsed < newcomerTopSlots)) {
+    safety += 1;
+    if (safety > 100) break;
     if (eUsed < experiencedSlots && experienced[eUsed]) {
       result.push(experienced[eUsed++]);
     }
     if (eUsed < experiencedSlots && experienced[eUsed]) {
       result.push(experienced[eUsed++]);
     }
-    if (nUsed < newcomerSlots && newcomers[nUsed]) {
+    if (nUsed < newcomerTopSlots && newcomers[nUsed]) {
       newcomers[nUsed]._focusBadge = true;
       result.push(newcomers[nUsed++]);
+    }
+    if ((eUsed >= experiencedSlots || !experienced[eUsed]) && (nUsed >= newcomerTopSlots || !newcomers[nUsed])) {
+      break;
     }
   }
 
